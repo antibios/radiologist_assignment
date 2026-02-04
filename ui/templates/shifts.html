@@ -1,0 +1,147 @@
+{{ define "shifts.html" }}
+{{ template "layout" . }}
+
+{{ define "content" }}
+<div class="container">
+    <div class="row">
+        <div class="col max">
+            <h4>Shift Management</h4>
+        </div>
+        <div class="col min">
+            <button class="primary" onclick="ui('#add-shift-modal')">
+                <i>add</i>
+                <span>Add Shift</span>
+            </button>
+        </div>
+    </div>
+
+    <table class="stripes">
+        <thead>
+            <tr>
+                <th>Priority</th>
+                <th>Name</th>
+                <th>Work Type</th>
+                <th>Sites</th>
+                <th>Credentials</th>
+                <th>Roster</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ $roster := .Roster }}
+            {{ range .Shifts }}
+            <tr id="shift-row-{{.ID}}">
+                <td>{{ .PriorityLevel }}</td>
+                <td class="shift-name">{{ .Name }}</td>
+                <td>{{ .WorkType }}</td>
+                <td>{{ range .Sites }}{{.}}, {{end}}</td>
+                <td>{{ range .RequiredCredentials }}{{.}}, {{end}}</td>
+                <td class="roster-cell">
+                    {{ $entries := index $roster .ID }}
+                    {{ range $entries }}
+                        <span class="badge secondary">{{ .RadiologistID }}</span>
+                    {{ end }}
+                    <button class="circle transparent small" onclick="openAssignModal({{.ID}}, '{{.Name}}')">
+                        <i>person_add</i>
+                    </button>
+                </td>
+                <td>
+                    <button class="circle transparent small" onclick="openEditShiftModal({{.ID}}, '{{.Name}}')">
+                        <i>edit</i>
+                    </button>
+                    <form action="/api/shifts/delete" method="POST" style="display:inline;">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <button class="circle transparent small error-text" type="submit">
+                            <i>delete</i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Shift Modal -->
+<dialog id="add-shift-modal">
+    <h5>Add New Shift</h5>
+    <form action="/api/shifts" method="POST">
+        <div class="field label border">
+            <input type="text" name="name" required>
+            <label>Shift Name</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="work_type" required>
+            <label>Work Type</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="site" required>
+            <label>Site</label>
+        </div>
+        <div class="field label border">
+            <input type="number" name="priority" value="0">
+            <label>Priority</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="credentials">
+            <label>Required Credentials (comma separated)</label>
+        </div>
+        <nav class="right-align">
+            <button type="button" class="transparent link" onclick="ui('#add-shift-modal')">Cancel</button>
+            <button type="submit" class="primary">Save Shift</button>
+        </nav>
+    </form>
+</dialog>
+
+<!-- Edit Shift Modal -->
+<dialog id="edit-shift-modal">
+    <h5>Edit Shift</h5>
+    <form action="/api/shifts/edit" method="POST">
+        <input type="hidden" name="id" id="edit-shift-id">
+        <div class="field label border">
+            <input type="text" name="name" id="edit-shift-name" required>
+            <label>Shift Name</label>
+        </div>
+        <nav class="right-align">
+            <button type="button" class="transparent link" onclick="ui('#edit-shift-modal')">Cancel</button>
+            <button type="submit" class="primary">Update Shift</button>
+        </nav>
+    </form>
+</dialog>
+
+<!-- Assign Radiologist Modal -->
+<dialog id="assign-rad-modal">
+    <h5>Assign Radiologist</h5>
+    <form action="/api/shifts/assign" method="POST">
+        <input type="hidden" name="shift_id" id="assign-shift-id">
+        <p>Assigning to: <span id="assign-shift-name"></span></p>
+        <div class="field label border">
+            <select name="radiologist_id">
+                {{ range .Radiologists }}
+                <option value="{{.ID}}">{{.FirstName}} {{.LastName}} ({{.ID}})</option>
+                {{ end }}
+            </select>
+            <label>Radiologist</label>
+        </div>
+        <nav class="right-align">
+            <button type="button" class="transparent link" onclick="ui('#assign-rad-modal')">Cancel</button>
+            <button type="submit" class="primary">Assign</button>
+        </nav>
+    </form>
+</dialog>
+
+<script>
+    function openEditShiftModal(id, name) {
+        document.getElementById('edit-shift-id').value = id;
+        document.getElementById('edit-shift-name').value = name;
+        document.getElementById('edit-shift-modal').setAttribute('open', 'true');
+    }
+
+    function openAssignModal(id, name) {
+        document.getElementById('assign-shift-id').value = id;
+        document.getElementById('assign-shift-name').innerText = name;
+        document.getElementById('assign-rad-modal').setAttribute('open', 'true');
+    }
+</script>
+{{ end }}
+{{ end }}

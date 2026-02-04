@@ -1,0 +1,51 @@
+{{ define "content" }}
+<div class="container">
+    <h4>System Status</h4>
+
+    <div class="row">
+        <div class="col s12 m4">
+            <article class="center-align">
+                <i class="large">assignment_turned_in</i>
+                <h5>{{ .AssignmentsCount }}</h5>
+                <p>Assignments Today</p>
+            </article>
+        </div>
+        <div class="col s12 m4">
+            <article class="center-align">
+                <i class="large">people</i>
+                <h5>{{ .ActiveRads }}</h5>
+                <p>Active Radiologists</p>
+            </article>
+        </div>
+        <div class="col s12 m4">
+            <article class="center-align">
+                <i class="large">pending</i>
+                <h5>{{ .PendingStudies }}</h5>
+                <p>Pending Studies</p>
+            </article>
+        </div>
+    </div>
+
+    <h5>Recent Assignments</h5>
+    <table class="stripes">
+        <thead>
+            <tr>
+                <th>Study ID</th>
+                <th>Radiologist</th>
+                <th>Strategy</th>
+                <th>Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ range .RecentAssignments }}
+            <tr>
+                <td>{{ .StudyID }}</td>
+                <td>{{ .RadiologistID }}</td>
+                <td>{{ .Strategy }}</td>
+                <td>{{ .AssignedAt.Format "15:04:05" }}</td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+{{ end }}

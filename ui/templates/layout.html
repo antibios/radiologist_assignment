@@ -1,0 +1,51 @@
+{{ define "layout" }}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radiology Assignment Engine</title>
+    <link href="/static/css/beer.min.css" rel="stylesheet">
+    <script type="module" src="/static/js/beer.min.js"></script>
+</head>
+<body class="light">
+    <nav>
+        <button class="circle transparent">
+            <i>menu</i>
+        </button>
+        <h5 class="max">Radiology Engine</h5>
+        <button class="circle transparent">
+            <i>account_circle</i>
+        </button>
+    </nav>
+
+    <div class="row">
+        <div class="col s12 m3 l2">
+            <nav class="drawer left">
+                <header>
+                    <nav>
+                        <h6 class="max">Menu</h6>
+                    </nav>
+                </header>
+                <a href="/">
+                    <i>dashboard</i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/rules">
+                    <i>rule</i>
+                    <span>Rules</span>
+                </a>
+                <a href="/shifts">
+                    <i>schedule</i>
+                    <span>Shifts</span>
+                </a>
+            </nav>
+        </div>
+
+        <main class="col s12 m9 l10 responsive">
+            {{ template "content" . }}
+        </main>
+    </div>
+</body>
+</html>
+{{ end }}
