@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
+	"radiology-assignment/internal/assignment"
 	"radiology-assignment/internal/models"
 	"strconv"
 	"strings"
@@ -20,6 +24,7 @@ var (
 		{ID: 2, Name: "MSK Load Balance", PriorityOrder: 2, ActionType: "ASSIGN_TO_SHIFT", Enabled: true},
 	}
 
+	assignmentsMu sync.RWMutex
 	assignments = []*models.Assignment{
 		{ID: 101, StudyID: "ST1001", RadiologistID: "rad1", ShiftID: 1, Strategy: "load_balanced", AssignedAt: time.Now().Add(-5 * time.Minute)},
 		{ID: 102, StudyID: "ST1002", RadiologistID: "rad2", ShiftID: 1, Strategy: "primary", AssignedAt: time.Now().Add(-2 * time.Minute)},
@@ -39,12 +44,86 @@ var (
 
 	// Mock Radiologists for assignment
 	radiologists = []*models.Radiologist{
-		{ID: "rad1", FirstName: "John", LastName: "Doe"},
-		{ID: "rad2", FirstName: "Jane", LastName: "Smith"},
-		{ID: "rad3", FirstName: "Bob", LastName: "Jones"},
+		{ID: "rad1", FirstName: "John", LastName: "Doe", MaxConcurrentStudies: 5},
+		{ID: "rad2", FirstName: "Jane", LastName: "Smith", MaxConcurrentStudies: 5},
+		{ID: "rad3", FirstName: "Bob", LastName: "Jones", MaxConcurrentStudies: 5},
+		{ID: "rad_limited", FirstName: "Limited", LastName: "Capacity", MaxConcurrentStudies: 1},
 	}
+
+	// Assignment Engine Instance
+	engine *assignment.Engine
 )
 
+// Implement Interfaces
+type InMemoryStore struct{}
+
+func (s *InMemoryStore) GetShiftsByWorkType(ctx context.Context, modality, bodyPart string, site string) ([]*models.Shift, error) {
+	shiftsMu.RLock()
+	defer shiftsMu.RUnlock()
+	var result []*models.Shift
+	for _, shift := range shifts {
+		// Simple match logic for demo
+		if strings.Contains(shift.WorkType, modality) {
+			result = append(result, shift)
+		}
+	}
+	return result, nil
+}
+
+func (s *InMemoryStore) GetRadiologist(ctx context.Context, id string) (*models.Radiologist, error) {
+	for _, rad := range radiologists {
+		if rad.ID == id {
+			// Ensure Status is set for logic
+			rad.Status = "active"
+			return rad, nil
+		}
+	}
+	return nil, errors.New("radiologist not found")
+}
+
+func (s *InMemoryStore) GetRadiologistCurrentWorkload(ctx context.Context, radiologistID string) (int64, error) {
+	assignmentsMu.RLock()
+	defer assignmentsMu.RUnlock()
+	count := int64(0)
+	for _, a := range assignments {
+		if a.RadiologistID == radiologistID {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (s *InMemoryStore) SaveAssignment(ctx context.Context, a *models.Assignment) error {
+	assignmentsMu.Lock()
+	defer assignmentsMu.Unlock()
+	a.ID = int64(len(assignments) + 1)
+	assignments = append(assignments, a)
+	return nil
+}
+
+type InMemoryRoster struct{}
+
+func (r *InMemoryRoster) GetByShift(shiftID int64) []*models.RosterEntry {
+	rosterMu.RLock()
+	defer rosterMu.RUnlock()
+	var result []*models.RosterEntry
+	for _, entry := range roster {
+		if entry.ShiftID == shiftID {
+			result = append(result, entry)
+		}
+	}
+	return result
+}
+
+type InMemoryRules struct{}
+
+func (r *InMemoryRules) GetActive() []*models.AssignmentRule {
+	rulesMu.RLock()
+	defer rulesMu.RUnlock()
+	return rules
+}
+
+// Data Structs for UI
 type DashboardData struct {
 	AssignmentsCount int
 	ActiveRads       int
@@ -68,6 +147,9 @@ func main() {
 		port = "8080"
 	}
 
+	// Initialize Engine
+	engine = assignment.NewEngine(&InMemoryStore{}, &InMemoryRoster{}, &InMemoryRules{})
+
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("ui/static"))))
 	http.HandleFunc("/", handleDashboard)
 	http.HandleFunc("/rules", handleRules)
@@ -80,6 +162,8 @@ func main() {
 	http.HandleFunc("/api/shifts/edit", handleEditShift)
 	http.HandleFunc("/api/shifts/delete", handleDeleteShift)
 	http.HandleFunc("/api/shifts/assign", handleAssignRadiologist)
+
+	http.HandleFunc("/api/simulate", handleSimulateAssignment)
 
 	log.Printf("API/UI Server started on :%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
@@ -107,11 +191,20 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	assignmentsMu.RLock()
+	recent := make([]*models.Assignment, len(assignments))
+	copy(recent, assignments)
+	// Reverse order for display
+	for i, j := 0, len(recent)-1; i < j; i, j = i+1, j-1 {
+		recent[i], recent[j] = recent[j], recent[i]
+	}
+	assignmentsMu.RUnlock()
+
 	data := DashboardData{
-		AssignmentsCount: 142,
+		AssignmentsCount: len(recent),
 		ActiveRads:       18,
 		PendingStudies:   3,
-		RecentAssignments: assignments,
+		RecentAssignments: recent,
 	}
 	render(w, "dashboard", data, "ui/templates/dashboard.html")
 }
@@ -351,4 +444,35 @@ func handleAssignRadiologist(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/shifts", http.StatusSeeOther)
 		return
 	}
+}
+
+func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		studyID := r.FormValue("study_id")
+		modality := r.FormValue("modality")
+
+		study := &models.Study{
+			ID:         studyID,
+			Modality:   modality,
+			BodyPart:   "General",
+			Site:       "SiteA",
+			Timestamp:  time.Now().Format("20060102150405"),
+			IngestTime: time.Now(),
+		}
+
+		assignment, err := engine.Assign(context.Background(), study)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Assignment Failed: %v", err), http.StatusServiceUnavailable)
+			return
+		}
+
+		fmt.Fprintf(w, "Assigned to %s", assignment.RadiologistID)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 }

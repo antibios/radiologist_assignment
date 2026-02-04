@@ -35,6 +35,8 @@ func TestE2E(t *testing.T) {
 			handleDeleteShift(w, r)
 		case "/api/shifts/assign":
 			handleAssignRadiologist(w, r)
+		case "/api/simulate":
+			handleSimulateAssignment(w, r)
 		default:
 			if strings.HasPrefix(r.URL.Path, "/static/") {
 				http.StripPrefix("/static/", http.FileServer(http.Dir("ui/static"))).ServeHTTP(w, r)
@@ -95,19 +97,12 @@ func TestE2E(t *testing.T) {
 
 	t.Run("AssignRadiologist", func(t *testing.T) {
 		shiftName := "E2E Test Shift"
-		// We want to assign a radiologist to the shift created above.
-		// We find the row, click "person_add" button.
 
 		err := chromedp.Run(ctx,
 			chromedp.Navigate(ts.URL+"/shifts"),
-			// Click Assign button in the row of our shift
 			chromedp.Click(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//button[contains(@onclick, "openAssignModal")]`, shiftName), chromedp.BySearch),
-			// Wait for modal
 			chromedp.WaitVisible(`#assign-rad-modal select[name="radiologist_id"]`, chromedp.ByQuery),
-			// Select first option (should be rad1)
-			// Actually we just submit defaults to "rad1"
 			chromedp.Click(`#assign-rad-modal button[type="submit"]`, chromedp.ByQuery),
-			// Verify assignment appears in table
 			chromedp.WaitVisible(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//span[contains(text(), "rad1")]`, shiftName), chromedp.BySearch),
 		)
 
@@ -145,6 +140,69 @@ func TestE2E(t *testing.T) {
 
 		if err != nil {
 			t.Fatalf("Failed to delete shift: %v", err)
+		}
+	})
+
+	t.Run("TestOverAssignment", func(t *testing.T) {
+		shiftName := "Overload Shift"
+
+		err := chromedp.Run(ctx,
+			chromedp.Navigate(ts.URL+"/shifts"),
+			// Create Shift
+			chromedp.Click(`button[onclick="ui('#add-shift-modal')"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#add-shift-modal input[name="name"]`, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-shift-modal input[name="name"]`, shiftName, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-shift-modal input[name="work_type"]`, "XRAY", chromedp.ByQuery),
+			chromedp.SendKeys(`#add-shift-modal input[name="site"]`, "SiteA", chromedp.ByQuery),
+			chromedp.Click(`#add-shift-modal button[type="submit"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(fmt.Sprintf(`//td[contains(@class, "shift-name") and text()="%s"]`, shiftName), chromedp.BySearch),
+
+			// Assign rad_limited
+			chromedp.Click(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//button[contains(@onclick, "openAssignModal")]`, shiftName), chromedp.BySearch),
+			chromedp.WaitVisible(`#assign-rad-modal select[name="radiologist_id"]`, chromedp.ByQuery),
+			chromedp.SetValue(`#assign-rad-modal select[name="radiologist_id"]`, "rad_limited", chromedp.ByQuery),
+			chromedp.Click(`#assign-rad-modal button[type="submit"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//span[contains(text(), "rad_limited")]`, shiftName), chromedp.BySearch),
+		)
+		if err != nil {
+			t.Fatalf("Failed setup for OverAssignment: %v", err)
+		}
+
+		// Simulate Assignment 1 via Fetch
+		var result1 string
+		err = chromedp.Run(ctx,
+			chromedp.Evaluate(`fetch('/api/simulate', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+				body: 'study_id=STUDY_1&modality=XRAY'
+			}).then(r => r.text())`, &result1),
+		)
+		if err != nil {
+			t.Fatalf("Failed simulation 1: %v", err)
+		}
+		if !strings.Contains(result1, "Assigned to rad_limited") {
+			t.Errorf("Expected assignment to rad_limited, got: %s", result1)
+		}
+
+		// Simulate Assignment 2 via Fetch
+		var resMap map[string]interface{}
+		err = chromedp.Run(ctx,
+			chromedp.Evaluate(`fetch('/api/simulate', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+				body: 'study_id=STUDY_2&modality=XRAY'
+			}).then(r => r.text().then(t => ({status: r.status, text: t})))`, &resMap),
+		)
+
+		if err != nil {
+			t.Fatalf("Failed simulation 2: %v", err)
+		}
+
+		status := int(resMap["status"].(float64))
+		text := resMap["text"].(string)
+
+		if status != 503 {
+			t.Errorf("Expected 503 Service Unavailable (Over Capacity), got %d: %s", status, text)
 		}
 	})
 }
