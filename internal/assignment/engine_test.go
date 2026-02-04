@@ -9,16 +9,20 @@ import (
 )
 
 // Helper for boilerplate setup
-func setupEngine(t *testing.T, shifts []*models.Shift, radiologists []*models.Radiologist, roster map[int64][]string, rules []*models.AssignmentRule) *Engine {
+func setupEngine(t testing.TB, shifts []*models.Shift, radiologists []*models.Radiologist, roster map[int64][]string, rules []*models.AssignmentRule) *Engine {
+	// Optimize lookup for benchmark
+	radMap := make(map[string]*models.Radiologist)
+	for _, r := range radiologists {
+		radMap[r.ID] = r
+	}
+
 	mockDB := &MockDataStore{
 		GetShiftsByWorkTypeFunc: func(ctx context.Context, mod, body, site string) ([]*models.Shift, error) {
 			return shifts, nil
 		},
 		GetRadiologistFunc: func(ctx context.Context, id string) (*models.Radiologist, error) {
-			for _, r := range radiologists {
-				if r.ID == id {
-					return r, nil
-				}
+			if r, ok := radMap[id]; ok {
+				return r, nil
 			}
 			return nil, errors.New("not found")
 		},
