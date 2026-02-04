@@ -141,6 +141,26 @@ type ShiftsData struct {
 	Radiologists []*models.Radiologist
 }
 
+type CalendarData struct {
+	ViewName       string
+	View           string
+	Days           []CalendarDay
+	UnfilledShifts []CalendarShift
+}
+
+type CalendarDay struct {
+	Date   time.Time
+	Shifts []CalendarShift
+}
+
+type CalendarShift struct {
+	ShiftName   string
+	ShiftType   string
+	Date        time.Time
+	Filled      bool
+	Radiologist string
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -162,6 +182,8 @@ func main() {
 	http.HandleFunc("/api/shifts/edit", handleEditShift)
 	http.HandleFunc("/api/shifts/delete", handleDeleteShift)
 	http.HandleFunc("/api/shifts/assign", handleAssignRadiologist)
+
+	http.HandleFunc("/calendar", handleCalendar)
 
 	http.HandleFunc("/api/simulate", handleSimulateAssignment)
 
@@ -444,6 +466,89 @@ func handleAssignRadiologist(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/shifts", http.StatusSeeOther)
 		return
 	}
+}
+
+func handleCalendar(w http.ResponseWriter, r *http.Request) {
+	view := r.URL.Query().Get("view")
+	if view == "" {
+		view = "month"
+	}
+
+	now := time.Now()
+	var days []CalendarDay
+	var unfilled []CalendarShift
+
+	shiftsMu.RLock()
+	rosterMu.RLock()
+
+	// Determine date range based on view
+	// Simply taking current day for 'day', current week for 'week', current month for 'month'
+	var start, end time.Time
+
+	switch view {
+	case "day":
+		start = now
+		end = now
+	case "week":
+		// Find start of week (Sunday)
+		weekday := int(now.Weekday())
+		start = now.AddDate(0, 0, -weekday)
+		end = start.AddDate(0, 0, 6)
+	case "month":
+		// Find start of month
+		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		end = start.AddDate(0, 1, -1)
+	}
+
+	// Generate grid
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+		day := CalendarDay{Date: d}
+
+		for _, s := range shifts {
+			// Check if filled
+			filled := false
+			radName := ""
+			for _, entry := range roster {
+				if entry.ShiftID == s.ID {
+					// Check if date falls in roster entry range
+					// Simple check: StartDate only for now as defined in roster logic
+					// Assuming daily roster entries or handling logic
+					// Let's match Year/Month/Day
+					if entry.StartDate.Year() == d.Year() && entry.StartDate.Month() == d.Month() && entry.StartDate.Day() == d.Day() {
+						filled = true
+						radName = entry.RadiologistID // Should map to name via lookups
+						break
+					}
+				}
+			}
+
+			cs := CalendarShift{
+				ShiftName: s.Name,
+				ShiftType: s.WorkType,
+				Date:      d,
+				Filled:    filled,
+				Radiologist: radName,
+			}
+			day.Shifts = append(day.Shifts, cs)
+
+			if !filled {
+				unfilled = append(unfilled, cs)
+			}
+		}
+		days = append(days, day)
+	}
+
+	rosterMu.RUnlock()
+	shiftsMu.RUnlock()
+
+	data := CalendarData{
+		ViewName:       strings.Title(view),
+		View:           view,
+		Days:           days,
+		UnfilledShifts: unfilled,
+	}
+
+	render(w, "calendar", data, "ui/templates/calendar.html")
 }
 
 func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {

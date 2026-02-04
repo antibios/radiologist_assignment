@@ -37,6 +37,8 @@ func TestE2E(t *testing.T) {
 			handleAssignRadiologist(w, r)
 		case "/api/simulate":
 			handleSimulateAssignment(w, r)
+		case "/calendar":
+			handleCalendar(w, r)
 		default:
 			if strings.HasPrefix(r.URL.Path, "/static/") {
 				http.StripPrefix("/static/", http.FileServer(http.Dir("ui/static"))).ServeHTTP(w, r)
@@ -62,6 +64,31 @@ func TestE2E(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+
+	t.Run("CreateRule", func(t *testing.T) {
+		ruleName := "E2E Test Rule"
+		var res string
+
+		err := chromedp.Run(ctx,
+			chromedp.Navigate(ts.URL+"/rules"),
+			// Check for 500 error on page load by looking for common error text or ensuring expected element exists
+			chromedp.WaitVisible(`button[onclick="ui('#add-rule-modal')"]`, chromedp.ByQuery),
+			// Force modal open
+			chromedp.Evaluate(`document.getElementById('add-rule-modal').setAttribute('open', 'true')`, nil),
+			chromedp.WaitVisible(`#add-rule-modal input[name="name"]`, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-rule-modal input[name="name"]`, ruleName, chromedp.ByQuery),
+			chromedp.Click(`#add-rule-modal button[type="submit"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`.rule-name`, chromedp.ByQuery),
+			chromedp.Text(`//td[contains(@class, "rule-name") and text()="`+ruleName+`"]`, &res),
+		)
+
+		if err != nil {
+			t.Fatalf("Failed to create rule: %v", err)
+		}
+		if res != ruleName {
+			t.Errorf("Expected rule name %s, got %s", ruleName, res)
+		}
+	})
 
 	t.Run("CreateShift", func(t *testing.T) {
 		shiftName := "E2E Test Shift"
@@ -140,6 +167,21 @@ func TestE2E(t *testing.T) {
 
 		if err != nil {
 			t.Fatalf("Failed to delete shift: %v", err)
+		}
+	})
+
+	t.Run("TestCalendarView", func(t *testing.T) {
+		err := chromedp.Run(ctx,
+			chromedp.Navigate(ts.URL+"/calendar"),
+			// Check for Month View Default
+			chromedp.WaitVisible(`.grid-calendar`, chromedp.ByQuery),
+			// Navigate to Week View
+			chromedp.Click(`a[href="?view=week"]`, chromedp.ByQuery),
+			// Check for Table
+			chromedp.WaitVisible(`table.stripes`, chromedp.ByQuery),
+		)
+		if err != nil {
+			t.Fatalf("Failed calendar view test: %v", err)
 		}
 	})
 
