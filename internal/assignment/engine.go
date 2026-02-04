@@ -28,6 +28,10 @@ type candidate struct {
 }
 
 func (e *Engine) Assign(ctx context.Context, study *models.Study) (*models.Assignment, error) {
+	if study == nil {
+		return nil, fmt.Errorf("study cannot be nil")
+	}
+
 	// Step 1: Match shifts based on study characteristics
 	shifts, err := e.matchShifts(ctx, study)
 	if err != nil {
