@@ -138,6 +138,12 @@ func (e *Engine) evaluateRules(ctx context.Context, study *models.Study, candida
 			// Simple implementation: Filter candidates who have credentials matching study.Modality
 			currentCandidates = e.filterByCompetency(currentCandidates, study.Modality)
 
+		case "ASSIGN_TO_RADIOLOGIST":
+			// Filter specifically for this radiologist
+			if target := rule.ActionTarget; target != "" {
+				currentCandidates = e.filterByRadiologistID(currentCandidates, target)
+			}
+
 		case "ESCALATE":
 			isEscalated = true
 		}
@@ -191,6 +197,12 @@ func (e *Engine) ruleMatches(rule *models.AssignmentRule, study *models.Study) b
 		}
 	}
 
+	if val, ok := filters["urgency"]; ok {
+		if study.Urgency != val.(string) {
+			return false
+		}
+	}
+
 	// Add other matches if needed
 	return true
 }
@@ -214,6 +226,16 @@ func (e *Engine) filterByCompetency(candidates []*candidate, requiredCredential 
 			}
 		}
 		if hasCred {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
+func (e *Engine) filterByRadiologistID(candidates []*candidate, targetID string) []*candidate {
+	var filtered []*candidate
+	for _, c := range candidates {
+		if c.Radiologist.ID == targetID {
 			filtered = append(filtered, c)
 		}
 	}
