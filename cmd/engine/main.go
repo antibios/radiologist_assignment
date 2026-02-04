@@ -1,12 +1,8 @@
 package main
 
 import (
-	"context"
 	"log"
-	"time"
 
-	"radiology-assignment/internal/assignment"
-	"radiology-assignment/internal/models"
 	// "radiology-assignment/internal/cache"
 	// "radiology-assignment/internal/db"
 )
@@ -22,13 +18,13 @@ func main() {
 
 	// Refresh caches periodically
 	/*
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		for range ticker.C {
-			rosterCache.Refresh(context.Background())
-			rulesCache.Refresh(context.Background())
-		}
-	}()
+		go func() {
+			ticker := time.NewTicker(5 * time.Minute)
+			for range ticker.C {
+				rosterCache.Refresh(context.Background())
+				rulesCache.Refresh(context.Background())
+			}
+		}()
 	*/
 
 	// Initialize assignment engine

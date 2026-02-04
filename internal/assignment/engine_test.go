@@ -88,8 +88,12 @@ func TestAssign_CompetencyFiltering(t *testing.T) {
 			return []*models.Shift{shift}, nil
 		},
 		GetRadiologistFunc: func(ctx context.Context, id string) (*models.Radiologist, error) {
-			if id == "rad1" { return rad1, nil }
-			if id == "rad2" { return rad2, nil }
+			if id == "rad1" {
+				return rad1, nil
+			}
+			if id == "rad2" {
+				return rad2, nil
+			}
 			return nil, nil
 		},
 		GetRadiologistCurrentWorkloadFunc: func(ctx context.Context, id string) (int64, error) {
@@ -145,12 +149,18 @@ func TestAssign_CapacityConstraints(t *testing.T) {
 			return []*models.Shift{shift}, nil
 		},
 		GetRadiologistFunc: func(ctx context.Context, id string) (*models.Radiologist, error) {
-			if id == "rad1" { return rad1, nil }
-			if id == "rad2" { return rad2, nil }
+			if id == "rad1" {
+				return rad1, nil
+			}
+			if id == "rad2" {
+				return rad2, nil
+			}
 			return nil, nil
 		},
 		GetRadiologistCurrentWorkloadFunc: func(ctx context.Context, id string) (int64, error) {
-			if id == "rad1" { return 2, nil } // At capacity
+			if id == "rad1" {
+				return 2, nil
+			} // At capacity
 			return 0, nil
 		},
 		SaveAssignmentFunc: func(ctx context.Context, a *models.Assignment) error { return nil },
@@ -195,12 +205,18 @@ func TestAssign_LoadBalancing(t *testing.T) {
 			return []*models.Shift{shift}, nil
 		},
 		GetRadiologistFunc: func(ctx context.Context, id string) (*models.Radiologist, error) {
-			if id == "rad1" { return rad1, nil }
-			if id == "rad2" { return rad2, nil }
+			if id == "rad1" {
+				return rad1, nil
+			}
+			if id == "rad2" {
+				return rad2, nil
+			}
 			return nil, nil
 		},
 		GetRadiologistCurrentWorkloadFunc: func(ctx context.Context, id string) (int64, error) {
-			if id == "rad1" { return 1, nil }
+			if id == "rad1" {
+				return 1, nil
+			}
 			return 0, nil // Less load
 		},
 		SaveAssignmentFunc: func(ctx context.Context, a *models.Assignment) error { return nil },
@@ -235,7 +251,7 @@ func TestAssign_SLAEscalation(t *testing.T) {
 
 	// Study is old
 	study := &models.Study{
-		ID: "study5",
+		ID:         "study5",
 		IngestTime: time.Now().Add(-60 * time.Minute), // 60 mins old
 	}
 	shift := &models.Shift{ID: 5}
@@ -266,8 +282,8 @@ func TestAssign_SLAEscalation(t *testing.T) {
 			// Rule: If > 30 mins, set escalated flag
 			return []*models.AssignmentRule{
 				{
-					ID: 5,
-					ActionType: "ESCALATE",
+					ID:               5,
+					ActionType:       "ESCALATE",
 					ConditionFilters: map[string]interface{}{"min_age_minutes": 30},
 				},
 			}
