@@ -561,13 +561,21 @@ func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
 		studyID := r.FormValue("study_id")
 		modality := r.FormValue("modality")
 
+		ingestTimeStr := r.FormValue("ingest_time")
+		ingestTime := time.Now()
+		if ingestTimeStr != "" {
+			if t, err := time.Parse(time.RFC3339, ingestTimeStr); err == nil {
+				ingestTime = t
+			}
+		}
+
 		study := &models.Study{
 			ID:         studyID,
 			Modality:   modality,
 			BodyPart:   "General",
 			Site:       "SiteA",
-			Timestamp:  time.Now().Format("20060102150405"),
-			IngestTime: time.Now(),
+			Timestamp:  ingestTime.Format("20060102150405"),
+			IngestTime: ingestTime,
 		}
 
 		assignment, err := engine.Assign(context.Background(), study)
