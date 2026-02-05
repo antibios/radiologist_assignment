@@ -42,8 +42,8 @@ var (
 		{ID: 1, ShiftID: 1, RadiologistID: "rad1", StartDate: time.Now(), Status: "active"},
 	}
 
-	// Mock Radiologists for assignment
-	radiologists = []*models.Radiologist{
+	radiologistsMu sync.RWMutex
+	radiologists   = []*models.Radiologist{
 		{ID: "rad1", FirstName: "John", LastName: "Doe", MaxConcurrentStudies: 5},
 		{ID: "rad2", FirstName: "Jane", LastName: "Smith", MaxConcurrentStudies: 5},
 		{ID: "rad3", FirstName: "Bob", LastName: "Jones", MaxConcurrentStudies: 5},
@@ -71,6 +71,8 @@ func (s *InMemoryStore) GetShiftsByWorkType(ctx context.Context, modality, bodyP
 }
 
 func (s *InMemoryStore) GetRadiologist(ctx context.Context, id string) (*models.Radiologist, error) {
+	radiologistsMu.RLock()
+	defer radiologistsMu.RUnlock()
 	for _, rad := range radiologists {
 		if rad.ID == id {
 			// Ensure Status is set for logic
@@ -161,6 +163,10 @@ type CalendarShift struct {
 	Radiologist string
 }
 
+type RadiologistsData struct {
+	Radiologists []*models.Radiologist
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -182,6 +188,11 @@ func main() {
 	http.HandleFunc("/api/shifts/edit", handleEditShift)
 	http.HandleFunc("/api/shifts/delete", handleDeleteShift)
 	http.HandleFunc("/api/shifts/assign", handleAssignRadiologist)
+
+	http.HandleFunc("/radiologists", handleRadiologists)
+	http.HandleFunc("/api/radiologists", handleAPIRadiologists)
+	http.HandleFunc("/api/radiologists/edit", handleEditRadiologist)
+	http.HandleFunc("/api/radiologists/delete", handleDeleteRadiologist)
 
 	http.HandleFunc("/calendar", handleCalendar)
 
@@ -222,9 +233,13 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	assignmentsMu.RUnlock()
 
+	radiologistsMu.RLock()
+	activeRads := len(radiologists)
+	radiologistsMu.RUnlock()
+
 	data := DashboardData{
 		AssignmentsCount: len(recent),
-		ActiveRads:       18,
+		ActiveRads:       activeRads,
 		PendingStudies:   3,
 		RecentAssignments: recent,
 	}
@@ -336,6 +351,7 @@ func handleDeleteRule(w http.ResponseWriter, r *http.Request) {
 func handleShifts(w http.ResponseWriter, r *http.Request) {
 	shiftsMu.RLock()
 	rosterMu.RLock()
+	radiologistsMu.RLock()
 
 	// Map roster to shift IDs
 	rosterMap := make(map[int64][]*models.RosterEntry)
@@ -349,6 +365,7 @@ func handleShifts(w http.ResponseWriter, r *http.Request) {
 		Radiologists: radiologists,
 	}
 
+	radiologistsMu.RUnlock()
 	rosterMu.RUnlock()
 	shiftsMu.RUnlock()
 
@@ -588,4 +605,114 @@ func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
+// Radiologist Handlers
+
+func handleRadiologists(w http.ResponseWriter, r *http.Request) {
+	radiologistsMu.RLock()
+	data := RadiologistsData{
+		Radiologists: radiologists,
+	}
+	radiologistsMu.RUnlock()
+	render(w, "radiologists", data, "ui/templates/radiologists.html")
+}
+
+func handleAPIRadiologists(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		id := r.FormValue("id")
+		first := r.FormValue("first_name")
+		last := r.FormValue("last_name")
+		maxStr := r.FormValue("max_concurrent")
+		creds := r.FormValue("credentials")
+
+		max, _ := strconv.Atoi(maxStr)
+
+		radiologistsMu.Lock()
+		// Check for dupe ID
+		for _, r := range radiologists {
+			if r.ID == id {
+				radiologistsMu.Unlock()
+				http.Error(w, "Radiologist ID already exists", http.StatusConflict)
+				return
+			}
+		}
+
+		newRad := &models.Radiologist{
+			ID:                   id,
+			FirstName:            first,
+			LastName:             last,
+			MaxConcurrentStudies: max,
+			Credentials:          strings.Split(creds, ","),
+			Status:               "active",
+			CreatedAt:            time.Now(),
+		}
+		radiologists = append(radiologists, newRad)
+		radiologistsMu.Unlock()
+
+		http.Redirect(w, r, "/radiologists", http.StatusSeeOther)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
+func handleEditRadiologist(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		id := r.FormValue("id")
+		first := r.FormValue("first_name")
+		last := r.FormValue("last_name")
+		maxStr := r.FormValue("max_concurrent")
+		creds := r.FormValue("credentials")
+
+		max, _ := strconv.Atoi(maxStr)
+
+		radiologistsMu.Lock()
+		for _, rad := range radiologists {
+			if rad.ID == id {
+				rad.FirstName = first
+				rad.LastName = last
+				rad.MaxConcurrentStudies = max
+				rad.Credentials = strings.Split(creds, ",")
+				break
+			}
+		}
+		radiologistsMu.Unlock()
+
+		http.Redirect(w, r, "/radiologists", http.StatusSeeOther)
+		return
+	}
+}
+
+func handleDeleteRadiologist(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		id := r.FormValue("id")
+
+		radiologistsMu.Lock()
+		var newRads []*models.Radiologist
+		for _, rad := range radiologists {
+			if rad.ID != id {
+				newRads = append(newRads, rad)
+			}
+		}
+		radiologists = newRads
+		radiologistsMu.Unlock()
+
+		http.Redirect(w, r, "/radiologists", http.StatusSeeOther)
+		return
+	}
 }

@@ -39,6 +39,14 @@ func TestE2E(t *testing.T) {
 			handleSimulateAssignment(w, r)
 		case "/calendar":
 			handleCalendar(w, r)
+		case "/radiologists":
+			handleRadiologists(w, r)
+		case "/api/radiologists":
+			handleAPIRadiologists(w, r)
+		case "/api/radiologists/edit":
+			handleEditRadiologist(w, r)
+		case "/api/radiologists/delete":
+			handleDeleteRadiologist(w, r)
 		default:
 			if strings.HasPrefix(r.URL.Path, "/static/") {
 				http.StripPrefix("/static/", http.FileServer(http.Dir("ui/static"))).ServeHTTP(w, r)
@@ -87,6 +95,38 @@ func TestE2E(t *testing.T) {
 		}
 		if res != ruleName {
 			t.Errorf("Expected rule name %s, got %s", ruleName, res)
+		}
+	})
+
+	t.Run("EditRule", func(t *testing.T) {
+		newRuleName := "E2E Test Rule Edited"
+
+		err := chromedp.Run(ctx,
+			chromedp.Navigate(ts.URL+"/rules"),
+			chromedp.Click(fmt.Sprintf(`//tr[td[contains(text(), "E2E Test Rule")]]//button[contains(@onclick, "openEditModal")]`), chromedp.BySearch),
+			chromedp.WaitVisible(`#edit-rule-modal input[name="name"]`, chromedp.ByQuery),
+			chromedp.SetValue(`#edit-name`, newRuleName, chromedp.ByQuery),
+			chromedp.Click(`#edit-rule-modal button[type="submit"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`//td[contains(text(), "`+newRuleName+`")]`, chromedp.BySearch),
+		)
+
+		if err != nil {
+			t.Fatalf("Failed to edit rule: %v", err)
+		}
+	})
+
+	t.Run("DeleteRule", func(t *testing.T) {
+		ruleName := "E2E Test Rule Edited"
+
+		err := chromedp.Run(ctx,
+			chromedp.Navigate(ts.URL+"/rules"),
+			chromedp.WaitVisible(`//td[contains(text(), "`+ruleName+`")]`, chromedp.BySearch),
+			chromedp.Click(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//form[contains(@action, "delete")]//button`, ruleName), chromedp.BySearch),
+			chromedp.WaitNotPresent(`//td[contains(text(), "`+ruleName+`")]`, chromedp.BySearch),
+		)
+
+		if err != nil {
+			t.Fatalf("Failed to delete rule: %v", err)
 		}
 	})
 
@@ -245,6 +285,42 @@ func TestE2E(t *testing.T) {
 
 		if status != 503 {
 			t.Errorf("Expected 503 Service Unavailable (Over Capacity), got %d: %s", status, text)
+		}
+	})
+
+	t.Run("TestE2ERadiologists", func(t *testing.T) {
+		radID := "rad_test_e2e"
+		firstName := "Test"
+		lastName := "Radiologist"
+
+		err := chromedp.Run(ctx,
+			chromedp.Navigate(ts.URL+"/radiologists"),
+			// Create
+			chromedp.WaitVisible(`button[onclick="ui('#add-rad-modal')"]`, chromedp.ByQuery),
+			chromedp.Click(`button[onclick="ui('#add-rad-modal')"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#add-rad-modal input[name="id"]`, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-rad-modal input[name="id"]`, radID, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-rad-modal input[name="first_name"]`, firstName, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-rad-modal input[name="last_name"]`, lastName, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-rad-modal input[name="credentials"]`, "MRI,CT", chromedp.ByQuery),
+			chromedp.Click(`#add-rad-modal button[type="submit"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(fmt.Sprintf(`//td[contains(text(), "%s")]`, radID), chromedp.BySearch),
+
+			// Edit (Change Credentials)
+			chromedp.Click(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//button[contains(@onclick, "openEditRadModal")]`, radID), chromedp.BySearch),
+			chromedp.WaitVisible(`#edit-rad-modal input[name="credentials"]`, chromedp.ByQuery),
+			chromedp.SetValue(`#edit-rad-creds`, "MRI,CT,Neuro", chromedp.ByQuery),
+			chromedp.Click(`#edit-rad-modal button[type="submit"]`, chromedp.ByQuery),
+			// Verify update (check text contains Neuro)
+			chromedp.WaitVisible(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//td[contains(text(), "Neuro")]`, radID), chromedp.BySearch),
+
+			// Delete
+			chromedp.Click(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//form[contains(@action, "delete")]//button`, radID), chromedp.BySearch),
+			chromedp.WaitNotPresent(fmt.Sprintf(`//td[contains(text(), "%s")]`, radID), chromedp.BySearch),
+		)
+
+		if err != nil {
+			t.Fatalf("Failed radiologist E2E test: %v", err)
 		}
 	})
 }

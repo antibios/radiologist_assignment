@@ -1,0 +1,127 @@
+{{ define "radiologists" }}
+{{ template "layout" . }}
+
+{{ define "content" }}
+<div class="container">
+    <div class="row">
+        <div class="col max">
+            <h4>Radiologist Management</h4>
+        </div>
+        <div class="col min">
+            <button class="primary" onclick="ui('#add-rad-modal')">
+                <i>add</i>
+                <span>Add Radiologist</span>
+            </button>
+        </div>
+    </div>
+
+    <table class="stripes">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Max Concurrent</th>
+                <th>Credentials</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ range .Radiologists }}
+            <tr id="rad-row-{{.ID}}">
+                <td>{{ .ID }}</td>
+                <td class="rad-name">{{ .FirstName }} {{ .LastName }}</td>
+                <td>{{ .MaxConcurrentStudies }}</td>
+                <td>{{ range .Credentials }}{{.}}, {{end}}</td>
+                <td>
+                    <span class="badge green">{{ .Status }}</span>
+                </td>
+                <td>
+                    <button class="circle transparent small" onclick="openEditRadModal('{{.ID}}', '{{.FirstName}}', '{{.LastName}}', '{{.MaxConcurrentStudies}}', '{{range .Credentials}}{{.}},{{end}}')">
+                        <i>edit</i>
+                    </button>
+                    <form action="/api/radiologists/delete" method="POST" style="display:inline;">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <button class="circle transparent small error-text" type="submit">
+                            <i>delete</i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Radiologist Modal -->
+<dialog id="add-rad-modal">
+    <h5>Add New Radiologist</h5>
+    <form action="/api/radiologists" method="POST">
+        <div class="field label border">
+            <input type="text" name="id" required>
+            <label>Radiologist ID</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="first_name" required>
+            <label>First Name</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="last_name" required>
+            <label>Last Name</label>
+        </div>
+        <div class="field label border">
+            <input type="number" name="max_concurrent" value="5">
+            <label>Max Concurrent Studies</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="credentials">
+            <label>Credentials (comma separated)</label>
+        </div>
+        <nav class="right-align">
+            <button type="button" class="transparent link" onclick="ui('#add-rad-modal')">Cancel</button>
+            <button type="submit" class="primary">Save Radiologist</button>
+        </nav>
+    </form>
+</dialog>
+
+<!-- Edit Radiologist Modal -->
+<dialog id="edit-rad-modal">
+    <h5>Edit Radiologist</h5>
+    <form action="/api/radiologists/edit" method="POST">
+        <input type="hidden" name="id" id="edit-rad-id">
+        <div class="field label border">
+            <input type="text" name="first_name" id="edit-rad-first" required>
+            <label>First Name</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="last_name" id="edit-rad-last" required>
+            <label>Last Name</label>
+        </div>
+        <div class="field label border">
+            <input type="number" name="max_concurrent" id="edit-rad-max" required>
+            <label>Max Concurrent Studies</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="credentials" id="edit-rad-creds">
+            <label>Credentials (comma separated)</label>
+        </div>
+        <nav class="right-align">
+            <button type="button" class="transparent link" onclick="ui('#edit-rad-modal')">Cancel</button>
+            <button type="submit" class="primary">Update Radiologist</button>
+        </nav>
+    </form>
+</dialog>
+
+<script>
+    function openEditRadModal(id, first, last, max, creds) {
+        document.getElementById('edit-rad-id').value = id;
+        document.getElementById('edit-rad-first').value = first;
+        document.getElementById('edit-rad-last').value = last;
+        document.getElementById('edit-rad-max').value = max;
+        // Clean up trailing comma from loop
+        if (creds.endsWith(',')) creds = creds.slice(0, -1);
+        document.getElementById('edit-rad-creds').value = creds;
+        document.getElementById('edit-rad-modal').setAttribute('open', 'true');
+    }
+</script>
+{{ end }}
