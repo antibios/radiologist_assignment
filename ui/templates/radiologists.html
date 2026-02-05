@@ -1,6 +1,3 @@
-{{ define "radiologists" }}
-{{ template "layout" . }}
-
 {{ define "content" }}
 <div class="container">
     <div class="row">
@@ -75,13 +72,18 @@
             <input type="number" name="max_concurrent" value="5">
             <label>Max Concurrent Studies</label>
         </div>
-        <div class="field label border">
-            <input type="text" name="credentials">
-            <label>Credentials (comma separated)</label>
+        <div class="field textarea border">
+            <label>Credentials (Hold Ctrl/Cmd to select multiple)</label>
+            <select multiple name="credentials_select" id="add-rad-creds-select" style="height: 100px;">
+                {{ range .Credentials }}
+                <option value="{{.ID}}">{{.Name}} - {{.Description}}</option>
+                {{ end }}
+            </select>
+            <input type="hidden" name="credentials" id="add-rad-creds-hidden">
         </div>
         <nav class="right-align">
             <button type="button" class="transparent link" onclick="ui('#add-rad-modal')">Cancel</button>
-            <button type="submit" class="primary">Save Radiologist</button>
+            <button type="submit" class="primary" onclick="copyCreds('add')">Save Radiologist</button>
         </nav>
     </form>
 </dialog>
@@ -104,13 +106,18 @@
             <input type="number" name="max_concurrent" id="edit-rad-max" required>
             <label>Max Concurrent Studies</label>
         </div>
-        <div class="field label border">
-            <input type="text" name="credentials" id="edit-rad-creds">
-            <label>Credentials (comma separated)</label>
+        <div class="field textarea border">
+            <label>Credentials</label>
+            <select multiple name="credentials_select" id="edit-rad-creds-select" style="height: 100px;">
+                {{ range .Credentials }}
+                <option value="{{.ID}}">{{.Name}}</option>
+                {{ end }}
+            </select>
+            <input type="hidden" name="credentials" id="edit-rad-creds-hidden">
         </div>
         <nav class="right-align">
             <button type="button" class="transparent link" onclick="ui('#edit-rad-modal')">Cancel</button>
-            <button type="submit" class="primary">Update Radiologist</button>
+            <button type="submit" class="primary" onclick="copyCreds('edit')">Update Radiologist</button>
         </nav>
     </form>
 </dialog>
@@ -121,10 +128,24 @@
         document.getElementById('edit-rad-first').value = first;
         document.getElementById('edit-rad-last').value = last;
         document.getElementById('edit-rad-max').value = max;
-        // Clean up trailing comma from loop
+
+        // Clean up trailing comma
         if (creds.endsWith(',')) creds = creds.slice(0, -1);
-        document.getElementById('edit-rad-creds').value = creds;
+        const credArray = creds.split(',');
+
+        const select = document.getElementById('edit-rad-creds-select');
+        for (let i = 0; i < select.options.length; i++) {
+            select.options[i].selected = credArray.includes(select.options[i].value);
+        }
+
         document.getElementById('edit-rad-modal').setAttribute('open', 'true');
+    }
+
+    function copyCreds(mode) {
+        const select = document.getElementById(mode + '-rad-creds-select');
+        const hidden = document.getElementById(mode + '-rad-creds-hidden');
+        const selected = Array.from(select.selectedOptions).map(option => option.value);
+        hidden.value = selected.join(',');
     }
 </script>
 {{ end }}

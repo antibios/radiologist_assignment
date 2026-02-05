@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"radiology-assignment/internal/middleware"
 )
 
 func TestE2E(t *testing.T) {
@@ -43,6 +44,14 @@ func TestE2E(t *testing.T) {
 			middleware.CSRF(handleEditRadiologist)(w, r)
 		case "/api/radiologists/delete":
 			middleware.CSRF(handleDeleteRadiologist)(w, r)
+		case "/credentials":
+			middleware.CSRF(handleCredentials)(w, r)
+		case "/api/credentials":
+			middleware.CSRF(handleAPICredentials)(w, r)
+		case "/api/credentials/edit":
+			middleware.CSRF(handleEditCredential)(w, r)
+		case "/api/credentials/delete":
+			middleware.CSRF(handleDeleteCredential)(w, r)
 		case "/calendar":
 			middleware.CSRF(handleCalendar)(w, r)
 		case "/api/simulate":
@@ -70,7 +79,7 @@ func TestE2E(t *testing.T) {
 	ctx, cancel := chromedp.NewContext(allocCtx)
 	defer cancel()
 
-	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel = context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
 	t.Run("CreateRule", func(t *testing.T) {
@@ -93,6 +102,65 @@ func TestE2E(t *testing.T) {
 		}
 		if res != ruleName {
 			t.Errorf("Expected rule name %s, got %s", ruleName, res)
+		}
+	})
+
+	t.Run("TestE2ECredentials", func(t *testing.T) {
+		credID := "CRED_TEST"
+		credName := "Test Credential"
+		credDesc := "Description of test credential"
+
+		err := chromedp.Run(ctx,
+			chromedp.Navigate(ts.URL+"/credentials"),
+			// Create
+			chromedp.WaitVisible(`button[onclick="ui('#add-cred-modal')"]`, chromedp.ByQuery),
+			chromedp.Click(`button[onclick="ui('#add-cred-modal')"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#add-cred-modal input[name="id"]`, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-cred-modal input[name="id"]`, credID, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-cred-modal input[name="name"]`, credName, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-cred-modal input[name="description"]`, credDesc, chromedp.ByQuery),
+			chromedp.Click(`#add-cred-modal button[type="submit"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(fmt.Sprintf(`//td[contains(text(), "%s")]`, credID), chromedp.BySearch),
+
+			// Edit
+			chromedp.Click(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//button[contains(@onclick, "openEditCredModal")]`, credID), chromedp.BySearch),
+			chromedp.WaitVisible(`#edit-cred-modal input[name="name"]`, chromedp.ByQuery),
+			chromedp.SetValue(`#edit-cred-name`, credName + " Edited", chromedp.ByQuery),
+			chromedp.Click(`#edit-cred-modal button[type="submit"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(fmt.Sprintf(`//td[contains(text(), "%s")]`, credName+" Edited"), chromedp.BySearch),
+		)
+		if err != nil {
+			t.Fatalf("Failed credential E2E test: %v", err)
+		}
+	})
+
+	t.Run("TestE2ERadiologists", func(t *testing.T) {
+		radID := "rad_cred_test"
+		firstName := "Credential"
+		lastName := "User"
+
+		err := chromedp.Run(ctx,
+			chromedp.Navigate(ts.URL+"/radiologists"),
+			// Create
+			chromedp.WaitVisible(`button[onclick="ui('#add-rad-modal')"]`, chromedp.ByQuery),
+			chromedp.Click(`button[onclick="ui('#add-rad-modal')"]`, chromedp.ByQuery),
+			chromedp.WaitVisible(`#add-rad-modal input[name="id"]`, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-rad-modal input[name="id"]`, radID, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-rad-modal input[name="first_name"]`, firstName, chromedp.ByQuery),
+			chromedp.SendKeys(`#add-rad-modal input[name="last_name"]`, lastName, chromedp.ByQuery),
+			// Select Credential (CRED_TEST)
+			chromedp.SetValue(`#add-rad-creds-select`, "CRED_TEST", chromedp.ByQuery),
+
+			// Trigger the JS copyCreds on submit click
+			chromedp.Click(`#add-rad-modal button[type="submit"]`, chromedp.ByQuery),
+
+			chromedp.WaitVisible(fmt.Sprintf(`//td[contains(text(), "%s")]`, radID), chromedp.BySearch),
+			// Verify credential listed in table
+			chromedp.WaitVisible(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//td[contains(text(), "CRED_TEST")]`, radID), chromedp.BySearch),
+		)
+
+		if err != nil {
+			t.Fatalf("Failed radiologist with credentials E2E test: %v", err)
 		}
 	})
 

@@ -1,0 +1,2 @@
+2026/02/05 22:33:22 API/UI Server started on :8080
+2026/02/05 22:37:43 http: superfluous response.WriteHeader call from main.render (main.go:244)

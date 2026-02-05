@@ -51,6 +51,13 @@ var (
 		{ID: "rad_limited", FirstName: "Limited", LastName: "Capacity", MaxConcurrentStudies: 1},
 	}
 
+	credentialsMu sync.RWMutex
+	credentials   = []*models.Credential{
+		{ID: "MRI", Name: "MRI", Description: "Magnetic Resonance Imaging"},
+		{ID: "CT", Name: "CT", Description: "Computed Tomography"},
+		{ID: "Neuro", Name: "Neuro", Description: "Neuroradiology"},
+	}
+
 	// Assignment Engine Instance
 	engine *assignment.Engine
 )
@@ -166,6 +173,11 @@ type CalendarShift struct {
 
 type RadiologistsData struct {
 	Radiologists []*models.Radiologist
+	Credentials  []*models.Credential // Added for dropdown
+}
+
+type CredentialsData struct {
+	Credentials []*models.Credential
 }
 
 func main() {
@@ -195,6 +207,11 @@ func main() {
 	http.HandleFunc("/api/radiologists/edit", middleware.CSRF(handleEditRadiologist))
 	http.HandleFunc("/api/radiologists/delete", middleware.CSRF(handleDeleteRadiologist))
 
+	http.HandleFunc("/credentials", middleware.CSRF(handleCredentials))
+	http.HandleFunc("/api/credentials", middleware.CSRF(handleAPICredentials))
+	http.HandleFunc("/api/credentials/edit", middleware.CSRF(handleEditCredential))
+	http.HandleFunc("/api/credentials/delete", middleware.CSRF(handleDeleteCredential))
+
 	http.HandleFunc("/calendar", middleware.CSRF(handleCalendar))
 
 	http.HandleFunc("/api/simulate", middleware.CSRF(handleSimulateAssignment))
@@ -202,6 +219,29 @@ func main() {
 	log.Printf("API/UI Server started on :%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("Server failed: %v", err)
+	}
+}
+
+func render(w http.ResponseWriter, r *http.Request, tmplName string, data interface{}, files ...string) {
+	allFiles := append([]string{"ui/templates/layout.html"}, files...)
+	tmpl, err := template.ParseFiles(allFiles...)
+	if err != nil {
+		http.Error(w, "Template Parse Error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	token, _ := r.Context().Value(middleware.CSRFTokenKey).(string)
+
+	wrapper := struct {
+		Data      interface{}
+		CSRFToken string
+	}{
+		Data:      data,
+		CSRFToken: token,
+	}
+
+	if err := tmpl.ExecuteTemplate(w, "layout", wrapper); err != nil {
+		http.Error(w, "Template Execute Error: "+err.Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -598,9 +638,12 @@ func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
 
 func handleRadiologists(w http.ResponseWriter, r *http.Request) {
 	radiologistsMu.RLock()
+	credentialsMu.RLock()
 	data := RadiologistsData{
 		Radiologists: radiologists,
+		Credentials:  credentials,
 	}
+	credentialsMu.RUnlock()
 	radiologistsMu.RUnlock()
 	render(w, r, "radiologists", data, "ui/templates/radiologists.html")
 }
@@ -616,7 +659,7 @@ func handleAPIRadiologists(w http.ResponseWriter, r *http.Request) {
 		first := r.FormValue("first_name")
 		last := r.FormValue("last_name")
 		maxStr := r.FormValue("max_concurrent")
-		creds := r.FormValue("credentials")
+		creds := r.FormValue("credentials") // Now likely a comma separated string from hidden input or similar
 
 		max, _ := strconv.Atoi(maxStr)
 
@@ -700,6 +743,101 @@ func handleDeleteRadiologist(w http.ResponseWriter, r *http.Request) {
 		radiologistsMu.Unlock()
 
 		http.Redirect(w, r, "/radiologists", http.StatusSeeOther)
+		return
+	}
+}
+
+// Credentials Handlers
+
+func handleCredentials(w http.ResponseWriter, r *http.Request) {
+	credentialsMu.RLock()
+	data := CredentialsData{
+		Credentials: credentials,
+	}
+	credentialsMu.RUnlock()
+	render(w, r, "credentials", data, "ui/templates/credentials.html")
+}
+
+func handleAPICredentials(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		id := r.FormValue("id")
+		name := r.FormValue("name")
+		desc := r.FormValue("description")
+
+		credentialsMu.Lock()
+		for _, c := range credentials {
+			if c.ID == id {
+				credentialsMu.Unlock()
+				http.Error(w, "Credential ID exists", http.StatusConflict)
+				return
+			}
+		}
+
+		newCred := &models.Credential{
+			ID:          id,
+			Name:        name,
+			Description: desc,
+			CreatedAt:   time.Now(),
+		}
+		credentials = append(credentials, newCred)
+		credentialsMu.Unlock()
+
+		http.Redirect(w, r, "/credentials", http.StatusSeeOther)
+		return
+	}
+}
+
+func handleEditCredential(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		id := r.FormValue("id")
+		name := r.FormValue("name")
+		desc := r.FormValue("description")
+
+		credentialsMu.Lock()
+		for _, c := range credentials {
+			if c.ID == id {
+				c.Name = name
+				c.Description = desc
+				break
+			}
+		}
+		credentialsMu.Unlock()
+
+		http.Redirect(w, r, "/credentials", http.StatusSeeOther)
+		return
+	}
+}
+
+func handleDeleteCredential(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		id := r.FormValue("id")
+
+		credentialsMu.Lock()
+		var newCreds []*models.Credential
+		for _, c := range credentials {
+			if c.ID != id {
+				newCreds = append(newCreds, c)
+			}
+		}
+		credentials = newCreds
+		credentialsMu.Unlock()
+
+		http.Redirect(w, r, "/credentials", http.StatusSeeOther)
 		return
 	}
 }
