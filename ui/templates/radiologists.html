@@ -41,6 +41,7 @@
                         <i>edit</i>
                     </button>
                     <form action="/api/radiologists/delete" method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
                         <input type="hidden" name="id" value="{{.ID}}">
                         <button class="circle transparent small error-text" type="submit">
                             <i>delete</i>
@@ -57,6 +58,7 @@
 <dialog id="add-rad-modal">
     <h5>Add New Radiologist</h5>
     <form action="/api/radiologists" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
         <div class="field label border">
             <input type="text" name="id" required>
             <label>Radiologist ID</label>
@@ -88,6 +90,7 @@
 <dialog id="edit-rad-modal">
     <h5>Edit Radiologist</h5>
     <form action="/api/radiologists/edit" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
         <input type="hidden" name="id" id="edit-rad-id">
         <div class="field label border">
             <input type="text" name="first_name" id="edit-rad-first" required>

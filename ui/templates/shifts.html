@@ -47,6 +47,7 @@
                         <i>edit</i>
                     </button>
                     <form action="/api/shifts/delete" method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
                         <input type="hidden" name="id" value="{{.ID}}">
                         <button class="circle transparent small error-text" type="submit">
                             <i>delete</i>
@@ -63,6 +64,7 @@
 <dialog id="add-shift-modal">
     <h5>Add New Shift</h5>
     <form action="/api/shifts" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
         <div class="field label border">
             <input type="text" name="name" required>
             <label>Shift Name</label>
@@ -94,6 +96,7 @@
 <dialog id="edit-shift-modal">
     <h5>Edit Shift</h5>
     <form action="/api/shifts/edit" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
         <input type="hidden" name="id" id="edit-shift-id">
         <div class="field label border">
             <input type="text" name="name" id="edit-shift-name" required>
@@ -110,6 +113,7 @@
 <dialog id="assign-rad-modal">
     <h5>Assign Radiologist</h5>
     <form action="/api/shifts/assign" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
         <input type="hidden" name="shift_id" id="assign-shift-id">
         <p>Assigning to: <span id="assign-shift-name"></span></p>
         <div class="field label border">

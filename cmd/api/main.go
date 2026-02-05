@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"radiology-assignment/internal/assignment"
+	"radiology-assignment/internal/middleware"
 	"radiology-assignment/internal/models"
 	"strconv"
 	"strings"
@@ -177,44 +178,30 @@ func main() {
 	engine = assignment.NewEngine(&InMemoryStore{}, &InMemoryRoster{}, &InMemoryRules{})
 
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("ui/static"))))
-	http.HandleFunc("/", handleDashboard)
-	http.HandleFunc("/rules", handleRules)
-	http.HandleFunc("/api/rules", handleAPIRules)
-	http.HandleFunc("/api/rules/edit", handleEditRule)
-	http.HandleFunc("/api/rules/delete", handleDeleteRule)
+	http.HandleFunc("/", middleware.CSRF(handleDashboard))
+	http.HandleFunc("/rules", middleware.CSRF(handleRules))
+	http.HandleFunc("/api/rules", middleware.CSRF(handleAPIRules))
+	http.HandleFunc("/api/rules/edit", middleware.CSRF(handleEditRule))
+	http.HandleFunc("/api/rules/delete", middleware.CSRF(handleDeleteRule))
 
-	http.HandleFunc("/shifts", handleShifts)
-	http.HandleFunc("/api/shifts", handleAPIShifts)
-	http.HandleFunc("/api/shifts/edit", handleEditShift)
-	http.HandleFunc("/api/shifts/delete", handleDeleteShift)
-	http.HandleFunc("/api/shifts/assign", handleAssignRadiologist)
+	http.HandleFunc("/shifts", middleware.CSRF(handleShifts))
+	http.HandleFunc("/api/shifts", middleware.CSRF(handleAPIShifts))
+	http.HandleFunc("/api/shifts/edit", middleware.CSRF(handleEditShift))
+	http.HandleFunc("/api/shifts/delete", middleware.CSRF(handleDeleteShift))
+	http.HandleFunc("/api/shifts/assign", middleware.CSRF(handleAssignRadiologist))
 
-	http.HandleFunc("/radiologists", handleRadiologists)
-	http.HandleFunc("/api/radiologists", handleAPIRadiologists)
-	http.HandleFunc("/api/radiologists/edit", handleEditRadiologist)
-	http.HandleFunc("/api/radiologists/delete", handleDeleteRadiologist)
+	http.HandleFunc("/radiologists", middleware.CSRF(handleRadiologists))
+	http.HandleFunc("/api/radiologists", middleware.CSRF(handleAPIRadiologists))
+	http.HandleFunc("/api/radiologists/edit", middleware.CSRF(handleEditRadiologist))
+	http.HandleFunc("/api/radiologists/delete", middleware.CSRF(handleDeleteRadiologist))
 
-	http.HandleFunc("/calendar", handleCalendar)
+	http.HandleFunc("/calendar", middleware.CSRF(handleCalendar))
 
-	http.HandleFunc("/api/simulate", handleSimulateAssignment)
+	http.HandleFunc("/api/simulate", middleware.CSRF(handleSimulateAssignment))
 
 	log.Printf("API/UI Server started on :%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("Server failed: %v", err)
-	}
-}
-
-func render(w http.ResponseWriter, tmplName string, data interface{}, files ...string) {
-	// Include layout in all renders
-	allFiles := append([]string{"ui/templates/layout.html"}, files...)
-	tmpl, err := template.ParseFiles(allFiles...)
-	if err != nil {
-		http.Error(w, "Template Parse Error: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
-		http.Error(w, "Template Execute Error: "+err.Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -243,7 +230,7 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
 		PendingStudies:   3,
 		RecentAssignments: recent,
 	}
-	render(w, "dashboard", data, "ui/templates/dashboard.html")
+	render(w, r, "dashboard", data, "ui/templates/dashboard.html")
 }
 
 func handleRules(w http.ResponseWriter, r *http.Request) {
@@ -253,7 +240,7 @@ func handleRules(w http.ResponseWriter, r *http.Request) {
 	}
 	rulesMu.RUnlock()
 
-	render(w, "rules", data, "ui/templates/rules.html")
+	render(w, r, "rules", data, "ui/templates/rules.html")
 }
 
 func handleAPIRules(w http.ResponseWriter, r *http.Request) {
@@ -369,7 +356,7 @@ func handleShifts(w http.ResponseWriter, r *http.Request) {
 	rosterMu.RUnlock()
 	shiftsMu.RUnlock()
 
-	render(w, "shifts", data, "ui/templates/shifts.html")
+	render(w, r, "shifts", data, "ui/templates/shifts.html")
 }
 
 func handleAPIShifts(w http.ResponseWriter, r *http.Request) {
@@ -565,7 +552,7 @@ func handleCalendar(w http.ResponseWriter, r *http.Request) {
 		UnfilledShifts: unfilled,
 	}
 
-	render(w, "calendar", data, "ui/templates/calendar.html")
+	render(w, r, "calendar", data, "ui/templates/calendar.html")
 }
 
 func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
@@ -615,7 +602,7 @@ func handleRadiologists(w http.ResponseWriter, r *http.Request) {
 		Radiologists: radiologists,
 	}
 	radiologistsMu.RUnlock()
-	render(w, "radiologists", data, "ui/templates/radiologists.html")
+	render(w, r, "radiologists", data, "ui/templates/radiologists.html")
 }
 
 func handleAPIRadiologists(w http.ResponseWriter, r *http.Request) {

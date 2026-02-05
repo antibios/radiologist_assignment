@@ -40,6 +40,7 @@
                         <i>edit</i>
                     </button>
                     <form action="/api/rules/delete" method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
                         <input type="hidden" name="id" value="{{.ID}}">
                         <button class="circle transparent small error-text" type="submit">
                             <i>delete</i>
@@ -56,6 +57,7 @@
 <dialog id="add-rule-modal">
     <h5>Add New Rule</h5>
     <form action="/api/rules" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
         <div class="field label border">
             <input type="text" name="name" required>
             <label>Rule Name</label>
@@ -80,6 +82,7 @@
 <dialog id="edit-rule-modal">
     <h5>Edit Rule</h5>
     <form action="/api/rules/edit" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ $.CSRFToken }}">
         <input type="hidden" name="id" id="edit-id">
         <div class="field label border">
             <input type="text" name="name" id="edit-name" required>
