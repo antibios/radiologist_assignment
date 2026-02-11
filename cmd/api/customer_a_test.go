@@ -1,3 +1,18 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/chromedp/chromedp"
+)
+
+// CustomerASLASubtest is a subtest fragment for SLA escalation verification.
+// It is intended to be called from a larger E2E test suite.
+func CustomerASLASubtest(t *testing.T, ctx context.Context, ts *httptest.Server) {
 	// 3. SLA Escalation ("IF THEY'RE SLOW")
 	t.Run("SLAEscalation", func(t *testing.T) {
 		// Scenario: Study is old -> Should trigger escalation rule
@@ -46,3 +61,4 @@
 		// We can't verify "Escalation" happened easily from the return string "Assigned to X".
 		// Ideally, we'd check the Dashboard for an "Escalated" badge.
 	})
+}

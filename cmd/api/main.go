@@ -500,33 +500,47 @@ func handleCalendar(w http.ResponseWriter, r *http.Request) {
 		end = start.AddDate(0, 1, -1)
 	}
 
+	// Pre-process roster into a map for O(1) lookup
+	type rosterKey struct {
+		ShiftID int64
+		Year    int
+		Month   time.Month
+		Day     int
+	}
+	rosterMap := make(map[rosterKey]*models.RosterEntry)
+	for _, entry := range roster {
+		key := rosterKey{
+			ShiftID: entry.ShiftID,
+			Year:    entry.StartDate.Year(),
+			Month:   entry.StartDate.Month(),
+			Day:     entry.StartDate.Day(),
+		}
+		// If multiple entries exist for the same shift/date, preserve the first one
+		// to match original sequential search behavior.
+		if _, exists := rosterMap[key]; !exists {
+			rosterMap[key] = entry
+		}
+	}
+
 	// Generate grid
 	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
 		day := CalendarDay{Date: d}
+		y, m, dayNum := d.Date()
 
 		for _, s := range shifts {
-			// Check if filled
-			filled := false
+			// Check if filled via map lookup
+			key := rosterKey{ShiftID: s.ID, Year: y, Month: m, Day: dayNum}
+			entry, filled := rosterMap[key]
 			radName := ""
-			for _, entry := range roster {
-				if entry.ShiftID == s.ID {
-					// Check if date falls in roster entry range
-					// Simple check: StartDate only for now as defined in roster logic
-					// Assuming daily roster entries or handling logic
-					// Let's match Year/Month/Day
-					if entry.StartDate.Year() == d.Year() && entry.StartDate.Month() == d.Month() && entry.StartDate.Day() == d.Day() {
-						filled = true
-						radName = entry.RadiologistID // Should map to name via lookups
-						break
-					}
-				}
+			if filled {
+				radName = entry.RadiologistID // Should map to name via lookups
 			}
 
 			cs := CalendarShift{
-				ShiftName: s.Name,
-				ShiftType: s.WorkType,
-				Date:      d,
-				Filled:    filled,
+				ShiftName:   s.Name,
+				ShiftType:   s.WorkType,
+				Date:        d,
+				Filled:      filled,
 				Radiologist: radName,
 			}
 			day.Shifts = append(day.Shifts, cs)
