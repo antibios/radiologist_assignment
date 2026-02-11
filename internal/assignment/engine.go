@@ -243,12 +243,23 @@ func (e *Engine) filterByRadiologistID(candidates []*candidate, targetID string)
 }
 
 func (e *Engine) filterByCapacity(ctx context.Context, candidates []*candidate) ([]*candidate, error) {
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	ids := make([]string, len(candidates))
+	for i, c := range candidates {
+		ids[i] = c.Radiologist.ID
+	}
+
+	workloads, err := e.db.GetRadiologistWorkloads(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
 	var filtered []*candidate
 	for _, c := range candidates {
-		load, err := e.db.GetRadiologistCurrentWorkload(ctx, c.Radiologist.ID)
-		if err != nil {
-			return nil, err
-		}
+		load := workloads[c.Radiologist.ID]
 		if int(load) < c.Radiologist.MaxConcurrentStudies || c.Radiologist.MaxConcurrentStudies == 0 {
 			filtered = append(filtered, c)
 		}
@@ -257,15 +268,26 @@ func (e *Engine) filterByCapacity(ctx context.Context, candidates []*candidate) 
 }
 
 func (e *Engine) loadBalance(ctx context.Context, candidates []*candidate) (*candidate, error) {
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	ids := make([]string, len(candidates))
+	for i, c := range candidates {
+		ids[i] = c.Radiologist.ID
+	}
+
+	workloads, err := e.db.GetRadiologistWorkloads(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
 	// Pick candidate with lowest load
 	var best *candidate
 	minLoad := int64(999999)
 
 	for _, c := range candidates {
-		load, err := e.db.GetRadiologistCurrentWorkload(ctx, c.Radiologist.ID)
-		if err != nil {
-			return nil, err
-		}
+		load := workloads[c.Radiologist.ID]
 		if load < minLoad {
 			minLoad = load
 			best = c

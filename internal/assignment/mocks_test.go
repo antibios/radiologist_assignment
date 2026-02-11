@@ -9,6 +9,7 @@ type MockDataStore struct {
 	GetShiftsByWorkTypeFunc           func(ctx context.Context, modality, bodyPart string, site string) ([]*models.Shift, error)
 	GetRadiologistFunc                func(ctx context.Context, id string) (*models.Radiologist, error)
 	GetRadiologistCurrentWorkloadFunc func(ctx context.Context, radiologistID string) (int64, error)
+	GetRadiologistWorkloadsFunc       func(ctx context.Context, radiologistIDs []string) (map[string]int64, error)
 	SaveAssignmentFunc                func(ctx context.Context, assignment *models.Assignment) error
 }
 
@@ -22,6 +23,23 @@ func (m *MockDataStore) GetRadiologist(ctx context.Context, id string) (*models.
 
 func (m *MockDataStore) GetRadiologistCurrentWorkload(ctx context.Context, radiologistID string) (int64, error) {
 	return m.GetRadiologistCurrentWorkloadFunc(ctx, radiologistID)
+}
+
+func (m *MockDataStore) GetRadiologistWorkloads(ctx context.Context, radiologistIDs []string) (map[string]int64, error) {
+	if m.GetRadiologistWorkloadsFunc != nil {
+		return m.GetRadiologistWorkloadsFunc(ctx, radiologistIDs)
+	}
+
+	// Fallback: use the single item fetcher which might be mocked by tests
+	results := make(map[string]int64)
+	for _, id := range radiologistIDs {
+		val, err := m.GetRadiologistCurrentWorkload(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		results[id] = val
+	}
+	return results, nil
 }
 
 func (m *MockDataStore) SaveAssignment(ctx context.Context, assignment *models.Assignment) error {
