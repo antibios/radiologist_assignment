@@ -25,11 +25,13 @@ var (
 	}
 
 	assignmentsMu sync.RWMutex
-	assignments = []*models.Assignment{
+	assignments   = []*models.Assignment{
 		{ID: 101, StudyID: "ST1001", RadiologistID: "rad1", ShiftID: 1, Strategy: "load_balanced", AssignedAt: time.Now().Add(-5 * time.Minute)},
 		{ID: 102, StudyID: "ST1002", RadiologistID: "rad2", ShiftID: 1, Strategy: "primary", AssignedAt: time.Now().Add(-2 * time.Minute)},
 		{ID: 103, StudyID: "ST1003", RadiologistID: "rad_vip", ShiftID: 2, Strategy: "special_arrangement", AssignedAt: time.Now().Add(-1 * time.Minute)},
 	}
+
+	radiologistWorkload = make(map[string]int64)
 
 	shiftsMu sync.RWMutex
 	shifts   = []*models.Shift{
@@ -53,6 +55,13 @@ var (
 	// Assignment Engine Instance
 	engine *assignment.Engine
 )
+
+func init() {
+	// Initialize workload map from static assignments
+	for _, a := range assignments {
+		radiologistWorkload[a.RadiologistID]++
+	}
+}
 
 // Implement Interfaces
 type InMemoryStore struct{}
@@ -84,13 +93,7 @@ func (s *InMemoryStore) GetRadiologist(ctx context.Context, id string) (*models.
 func (s *InMemoryStore) GetRadiologistCurrentWorkload(ctx context.Context, radiologistID string) (int64, error) {
 	assignmentsMu.RLock()
 	defer assignmentsMu.RUnlock()
-	count := int64(0)
-	for _, a := range assignments {
-		if a.RadiologistID == radiologistID {
-			count++
-		}
-	}
-	return count, nil
+	return radiologistWorkload[radiologistID], nil
 }
 
 func (s *InMemoryStore) SaveAssignment(ctx context.Context, a *models.Assignment) error {
@@ -98,6 +101,7 @@ func (s *InMemoryStore) SaveAssignment(ctx context.Context, a *models.Assignment
 	defer assignmentsMu.Unlock()
 	a.ID = int64(len(assignments) + 1)
 	assignments = append(assignments, a)
+	radiologistWorkload[a.RadiologistID]++
 	return nil
 }
 
@@ -125,9 +129,9 @@ func (r *InMemoryRules) GetActive() []*models.AssignmentRule {
 
 // Data Structs for UI
 type DashboardData struct {
-	AssignmentsCount int
-	ActiveRads       int
-	PendingStudies   int
+	AssignmentsCount  int
+	ActiveRads        int
+	PendingStudies    int
 	RecentAssignments []*models.Assignment
 }
 
@@ -223,9 +227,9 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
 	assignmentsMu.RUnlock()
 
 	data := DashboardData{
-		AssignmentsCount: len(recent),
-		ActiveRads:       18,
-		PendingStudies:   3,
+		AssignmentsCount:  len(recent),
+		ActiveRads:        18,
+		PendingStudies:    3,
 		RecentAssignments: recent,
 	}
 	render(w, "dashboard", data, "ui/templates/dashboard.html")
@@ -253,10 +257,10 @@ func handleAPIRules(w http.ResponseWriter, r *http.Request) {
 
 		rulesMu.Lock()
 		newRule := &models.AssignmentRule{
-			ID: int64(len(rules) + 1),
-			Name: name,
-			ActionType: action,
-			Enabled: true,
+			ID:            int64(len(rules) + 1),
+			Name:          name,
+			ActionType:    action,
+			Enabled:       true,
 			PriorityOrder: len(rules) + 1,
 		}
 		rules = append(rules, newRule)
@@ -372,13 +376,13 @@ func handleAPIShifts(w http.ResponseWriter, r *http.Request) {
 
 		shiftsMu.Lock()
 		newShift := &models.Shift{
-			ID: int64(len(shifts) + 1),
-			Name: name,
-			WorkType: workType,
-			Sites: []string{site},
-			PriorityLevel: priority,
+			ID:                  int64(len(shifts) + 1),
+			Name:                name,
+			WorkType:            workType,
+			Sites:               []string{site},
+			PriorityLevel:       priority,
 			RequiredCredentials: strings.Split(creds, ","),
-			CreatedAt: time.Now(),
+			CreatedAt:           time.Now(),
 		}
 		shifts = append(shifts, newShift)
 		shiftsMu.Unlock()
@@ -454,11 +458,11 @@ func handleAssignRadiologist(w http.ResponseWriter, r *http.Request) {
 
 		rosterMu.Lock()
 		newEntry := &models.RosterEntry{
-			ID: int64(len(roster) + 1),
-			ShiftID: shiftID,
+			ID:            int64(len(roster) + 1),
+			ShiftID:       shiftID,
 			RadiologistID: radID,
-			StartDate: time.Now(),
-			Status: "active",
+			StartDate:     time.Now(),
+			Status:        "active",
 		}
 		roster = append(roster, newEntry)
 		rosterMu.Unlock()
@@ -523,10 +527,10 @@ func handleCalendar(w http.ResponseWriter, r *http.Request) {
 			}
 
 			cs := CalendarShift{
-				ShiftName: s.Name,
-				ShiftType: s.WorkType,
-				Date:      d,
-				Filled:    filled,
+				ShiftName:   s.Name,
+				ShiftType:   s.WorkType,
+				Date:        d,
+				Filled:      filled,
 				Radiologist: radName,
 			}
 			day.Shifts = append(day.Shifts, cs)
