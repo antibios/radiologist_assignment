@@ -193,9 +193,25 @@ func main() {
 	}
 }
 
+func resolveTemplatePath(path string) string {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		// Try going up two levels (for tests running from cmd/api)
+		p2 := "../../" + path
+		if _, err := os.Stat(p2); err == nil {
+			return p2
+		}
+	}
+	return path
+}
+
 func render(w http.ResponseWriter, tmplName string, data interface{}, files ...string) {
 	// Include layout in all renders
-	allFiles := append([]string{"ui/templates/layout.html"}, files...)
+	var allFiles []string
+	allFiles = append(allFiles, resolveTemplatePath("ui/templates/layout.html"))
+	for _, f := range files {
+		allFiles = append(allFiles, resolveTemplatePath(f))
+	}
+
 	tmpl, err := template.ParseFiles(allFiles...)
 	if err != nil {
 		http.Error(w, "Template Parse Error: "+err.Error(), http.StatusInternalServerError)
@@ -214,8 +230,17 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	assignmentsMu.RLock()
-	recent := make([]*models.Assignment, len(assignments))
-	copy(recent, assignments)
+	totalCount := len(assignments)
+	// Limit to last 50 assignments for display
+	limit := 50
+	l := limit
+	if l > totalCount {
+		l = totalCount
+	}
+	start := totalCount - l
+	recent := make([]*models.Assignment, l)
+	copy(recent, assignments[start:])
+
 	// Reverse order for display
 	for i, j := 0, len(recent)-1; i < j; i, j = i+1, j-1 {
 		recent[i], recent[j] = recent[j], recent[i]
@@ -223,7 +248,7 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
 	assignmentsMu.RUnlock()
 
 	data := DashboardData{
-		AssignmentsCount: len(recent),
+		AssignmentsCount: totalCount,
 		ActiveRads:       18,
 		PendingStudies:   3,
 		RecentAssignments: recent,
