@@ -9,6 +9,7 @@ import (
 type DataStore interface {
 	GetShiftsByWorkType(ctx context.Context, modality, bodyPart string, site string) ([]*models.Shift, error)
 	GetRadiologist(ctx context.Context, id string) (*models.Radiologist, error)
+	GetRadiologists(ctx context.Context, ids []string) ([]*models.Radiologist, error)
 	GetRadiologistCurrentWorkload(ctx context.Context, radiologistID string) (int64, error)
 	SaveAssignment(ctx context.Context, assignment *models.Assignment) error
 }

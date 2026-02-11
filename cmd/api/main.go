@@ -44,10 +44,10 @@ var (
 
 	// Mock Radiologists for assignment
 	radiologists = []*models.Radiologist{
-		{ID: "rad1", FirstName: "John", LastName: "Doe", MaxConcurrentStudies: 5},
-		{ID: "rad2", FirstName: "Jane", LastName: "Smith", MaxConcurrentStudies: 5},
-		{ID: "rad3", FirstName: "Bob", LastName: "Jones", MaxConcurrentStudies: 5},
-		{ID: "rad_limited", FirstName: "Limited", LastName: "Capacity", MaxConcurrentStudies: 1},
+		{ID: "rad1", FirstName: "John", LastName: "Doe", MaxConcurrentStudies: 5, Status: "active"},
+		{ID: "rad2", FirstName: "Jane", LastName: "Smith", MaxConcurrentStudies: 5, Status: "active"},
+		{ID: "rad3", FirstName: "Bob", LastName: "Jones", MaxConcurrentStudies: 5, Status: "active"},
+		{ID: "rad_limited", FirstName: "Limited", LastName: "Capacity", MaxConcurrentStudies: 1, Status: "active"},
 	}
 
 	// Assignment Engine Instance
@@ -73,12 +73,25 @@ func (s *InMemoryStore) GetShiftsByWorkType(ctx context.Context, modality, bodyP
 func (s *InMemoryStore) GetRadiologist(ctx context.Context, id string) (*models.Radiologist, error) {
 	for _, rad := range radiologists {
 		if rad.ID == id {
-			// Ensure Status is set for logic
-			rad.Status = "active"
 			return rad, nil
 		}
 	}
 	return nil, errors.New("radiologist not found")
+}
+
+func (s *InMemoryStore) GetRadiologists(ctx context.Context, ids []string) ([]*models.Radiologist, error) {
+	var result []*models.Radiologist
+	idMap := make(map[string]bool)
+	for _, id := range ids {
+		idMap[id] = true
+	}
+
+	for _, rad := range radiologists {
+		if idMap[rad.ID] {
+			result = append(result, rad)
+		}
+	}
+	return result, nil
 }
 
 func (s *InMemoryStore) GetRadiologistCurrentWorkload(ctx context.Context, radiologistID string) (int64, error) {

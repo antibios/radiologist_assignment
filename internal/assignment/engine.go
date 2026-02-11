@@ -81,34 +81,43 @@ func (e *Engine) matchShifts(ctx context.Context, study *models.Study) ([]*model
 }
 
 func (e *Engine) resolveRadiologists(ctx context.Context, shifts []*models.Shift) ([]*candidate, error) {
-	candMap := make(map[string]*candidate)
+	radShiftMap := make(map[string]int64)
+	var uniqueIDs []string
 
 	for _, shift := range shifts {
 		entries := e.roster.GetByShift(shift.ID)
 		for _, entry := range entries {
-			if _, exists := candMap[entry.RadiologistID]; exists {
-				continue
-			}
-
-			rad, err := e.db.GetRadiologist(ctx, entry.RadiologistID)
-			if err != nil {
-				continue
-			}
-
-			if rad.Status != "active" {
-				continue
-			}
-
-			candMap[entry.RadiologistID] = &candidate{
-				Radiologist: rad,
-				ShiftID:     shift.ID,
+			if _, exists := radShiftMap[entry.RadiologistID]; !exists {
+				radShiftMap[entry.RadiologistID] = shift.ID
+				uniqueIDs = append(uniqueIDs, entry.RadiologistID)
 			}
 		}
 	}
 
-	result := make([]*candidate, 0, len(candMap))
-	for _, c := range candMap {
-		result = append(result, c)
+	if len(uniqueIDs) == 0 {
+		return []*candidate{}, nil
+	}
+
+	radiologists, err := e.db.GetRadiologists(ctx, uniqueIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*candidate
+	for _, rad := range radiologists {
+		if rad.Status != "active" {
+			continue
+		}
+
+		shiftID, ok := radShiftMap[rad.ID]
+		if !ok {
+			continue
+		}
+
+		result = append(result, &candidate{
+			Radiologist: rad,
+			ShiftID:     shiftID,
+		})
 	}
 
 	return result, nil

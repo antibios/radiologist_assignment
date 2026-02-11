@@ -8,6 +8,7 @@ import (
 type MockDataStore struct {
 	GetShiftsByWorkTypeFunc           func(ctx context.Context, modality, bodyPart string, site string) ([]*models.Shift, error)
 	GetRadiologistFunc                func(ctx context.Context, id string) (*models.Radiologist, error)
+	GetRadiologistsFunc               func(ctx context.Context, ids []string) ([]*models.Radiologist, error)
 	GetRadiologistCurrentWorkloadFunc func(ctx context.Context, radiologistID string) (int64, error)
 	SaveAssignmentFunc                func(ctx context.Context, assignment *models.Assignment) error
 }
@@ -18,6 +19,10 @@ func (m *MockDataStore) GetShiftsByWorkType(ctx context.Context, modality, bodyP
 
 func (m *MockDataStore) GetRadiologist(ctx context.Context, id string) (*models.Radiologist, error) {
 	return m.GetRadiologistFunc(ctx, id)
+}
+
+func (m *MockDataStore) GetRadiologists(ctx context.Context, ids []string) ([]*models.Radiologist, error) {
+	return m.GetRadiologistsFunc(ctx, ids)
 }
 
 func (m *MockDataStore) GetRadiologistCurrentWorkload(ctx context.Context, radiologistID string) (int64, error) {
