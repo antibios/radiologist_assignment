@@ -14,11 +14,11 @@ func BenchmarkRuleEvaluation_1000Rules(b *testing.B) {
 	rules := make([]*models.AssignmentRule, 1000)
 	for i := 0; i < 1000; i++ {
 		rules[i] = &models.AssignmentRule{
-			ID: int64(i),
+			ID:            int64(i),
 			PriorityOrder: i,
 			// Add a condition that fails so we iterate through them
 			ConditionFilters: map[string]interface{}{"modality": "CT"},
-			ActionType: "FILTER_COMPETENCY",
+			ActionType:       "FILTER_COMPETENCY",
 		}
 	}
 
@@ -67,10 +67,10 @@ func BenchmarkAssign_EndToEnd(b *testing.B) {
 	rules := make([]*models.AssignmentRule, numRules)
 	for i := 0; i < numRules; i++ {
 		rules[i] = &models.AssignmentRule{
-			ID: int64(i),
-			PriorityOrder: i,
+			ID:               int64(i),
+			PriorityOrder:    i,
 			ConditionFilters: map[string]interface{}{"min_age_minutes": 1000}, // Won't match
-			ActionType: "ESCALATE",
+			ActionType:       "ESCALATE",
 		}
 	}
 

@@ -103,7 +103,9 @@ func TestAssign_CapacityConstraints(t *testing.T) {
 
 	// Override mockDB for this test to simulate load
 	engine.db.(*MockDataStore).GetRadiologistCurrentWorkloadFunc = func(ctx context.Context, id string) (int64, error) {
-		if id == "rad1" { return 2, nil }
+		if id == "rad1" {
+			return 2, nil
+		}
 		return 0, nil
 	}
 
@@ -127,7 +129,9 @@ func TestAssign_LoadBalancing(t *testing.T) {
 	engine := setupEngine(t, []*models.Shift{shift}, []*models.Radiologist{rad1, rad2}, map[int64][]string{4: {"rad1", "rad2"}}, nil)
 
 	engine.db.(*MockDataStore).GetRadiologistCurrentWorkloadFunc = func(ctx context.Context, id string) (int64, error) {
-		if id == "rad1" { return 1, nil }
+		if id == "rad1" {
+			return 1, nil
+		}
 		return 0, nil
 	}
 
@@ -167,13 +171,13 @@ func TestAssign_SpecialArrangement(t *testing.T) {
 	study := &models.Study{ID: "study_vip", Urgency: "STAT"}
 	shift := &models.Shift{ID: 6}
 
-	rad1 := &models.Radiologist{ID: "rad1", Status: "active"} // Regular
+	rad1 := &models.Radiologist{ID: "rad1", Status: "active"}    // Regular
 	rad2 := &models.Radiologist{ID: "rad_vip", Status: "active"} // VIP
 
 	// Rule: If STAT, assign to rad_vip
 	rules := []*models.AssignmentRule{{
 		ID: 6, ActionType: "ASSIGN_TO_RADIOLOGIST", ActionTarget: "rad_vip",
-		PriorityOrder: 1,
+		PriorityOrder:    1,
 		ConditionFilters: map[string]interface{}{"urgency": "STAT"},
 	}}
 
@@ -204,7 +208,9 @@ func TestAssign_Overflow(t *testing.T) {
 		map[int64][]string{10: {"rad1"}, 11: {"rad2"}}, nil)
 
 	engine.db.(*MockDataStore).GetRadiologistCurrentWorkloadFunc = func(ctx context.Context, id string) (int64, error) {
-		if id == "rad1" { return 1, nil } // Full
+		if id == "rad1" {
+			return 1, nil
+		} // Full
 		return 0, nil // Available
 	}
 
