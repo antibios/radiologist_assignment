@@ -52,6 +52,8 @@ var (
 		{ID: "rad_limited", FirstName: "Limited", LastName: "Capacity", MaxConcurrentStudies: 1, Status: "active"},
 	}
 
+	radiologistsMap map[string]*models.Radiologist
+
 	// Assignment Engine Instance
 	engine *assignment.Engine
 )
@@ -60,6 +62,11 @@ func init() {
 	// Initialize workload map from static assignments
 	for _, a := range assignments {
 		radiologistWorkload[a.RadiologistID]++
+	}
+	radiologistsMap = make(map[string]*models.Radiologist)
+	for _, rad := range radiologists {
+		radiologistsMap[rad.ID] = rad
+
 	}
 }
 
@@ -80,10 +87,10 @@ func (s *InMemoryStore) GetShiftsByWorkType(ctx context.Context, modality, bodyP
 }
 
 func (s *InMemoryStore) GetRadiologist(ctx context.Context, id string) (*models.Radiologist, error) {
-	for _, rad := range radiologists {
-		if rad.ID == id {
-			return rad, nil
-		}
+	if rad, ok := radiologistsMap[id]; ok {
+		// Ensure Status is set for logic
+		rad.Status = "active"
+		return rad, nil
 	}
 	return nil, errors.New("radiologist not found")
 }
@@ -283,9 +290,9 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
 	assignmentsMu.RUnlock()
 
 	data := DashboardData{
-		AssignmentsCount: totalCount,
-		ActiveRads:       18,
-		PendingStudies:   3,
+		AssignmentsCount:  totalCount,
+		ActiveRads:        18,
+		PendingStudies:    3,
 		RecentAssignments: recent,
 	}
 	render(w, "dashboard", data, "ui/templates/dashboard.html")
@@ -612,6 +619,8 @@ func handleCalendar(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
+	log.Println("handleSimulateAssignment: start")
+	defer log.Println("handleSimulateAssignment: end")
 	if r.Method == "POST" {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "Bad Request", http.StatusBadRequest)

@@ -25,6 +25,16 @@ func (s *BenchStore) GetRadiologist(ctx context.Context, id string) (*models.Rad
 	return nil, fmt.Errorf("not found")
 }
 
+func (s *BenchStore) GetRadiologists(ctx context.Context, ids []string) ([]*models.Radiologist, error) {
+	var results []*models.Radiologist
+	for _, id := range ids {
+		if r, ok := s.rads[id]; ok {
+			results = append(results, r)
+		}
+	}
+	return results, nil
+}
+
 // Inefficient implementation: O(M) where M is total assignments
 func (s *BenchStore) GetRadiologistCurrentWorkload(ctx context.Context, radiologistID string) (int64, error) {
 	count := int64(0)
