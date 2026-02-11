@@ -96,6 +96,24 @@ func (s *InMemoryStore) GetRadiologistCurrentWorkload(ctx context.Context, radio
 	return radiologistWorkload[radiologistID], nil
 }
 
+func (s *InMemoryStore) GetRadiologistWorkloads(ctx context.Context, radiologistIDs []string) (map[string]int64, error) {
+	assignmentsMu.RLock()
+	defer assignmentsMu.RUnlock()
+	counts := make(map[string]int64)
+	targetIDs := make(map[string]bool)
+	for _, id := range radiologistIDs {
+		counts[id] = 0
+		targetIDs[id] = true
+	}
+
+	for _, a := range assignments {
+		if targetIDs[a.RadiologistID] {
+			counts[a.RadiologistID]++
+		}
+	}
+	return counts, nil
+}
+
 func (s *InMemoryStore) SaveAssignment(ctx context.Context, a *models.Assignment) error {
 	assignmentsMu.Lock()
 	defer assignmentsMu.Unlock()
