@@ -68,21 +68,39 @@
             <label>Shift Name</label>
         </div>
         <div class="field label border">
-            <input type="text" name="work_type" required>
+            <select name="work_type">
+                {{ range .Modalities }}
+                <option value="{{.Code}}">{{.Name}}</option>
+                {{ end }}
+            </select>
             <label>Work Type</label>
         </div>
-        <div class="field label border">
-            <input type="text" name="site" required>
-            <label>Site</label>
-        </div>
+        <fieldset>
+            <legend>Sites</legend>
+            <nav class="vertical" style="max-height: 200px; overflow-y: auto;">
+                {{ range .Sites }}
+                <label class="checkbox">
+                    <input type="checkbox" name="sites" value="{{.Code}}">
+                    <span>{{.Name}}</span>
+                </label>
+                {{ end }}
+            </nav>
+        </fieldset>
         <div class="field label border">
             <input type="number" name="priority" value="0">
             <label>Priority</label>
         </div>
-        <div class="field label border">
-            <input type="text" name="credentials">
-            <label>Required Credentials (comma separated)</label>
-        </div>
+        <fieldset>
+            <legend>Required Credentials</legend>
+            <nav class="vertical" style="max-height: 200px; overflow-y: auto;">
+                {{ range .Credentials }}
+                <label class="checkbox">
+                    <input type="checkbox" name="credentials" value="{{.Code}}">
+                    <span>{{.Name}}</span>
+                </label>
+                {{ end }}
+            </nav>
+        </fieldset>
         <nav class="right-align">
             <button type="button" class="transparent link" onclick="ui('#add-shift-modal')">Cancel</button>
             <button type="submit" class="primary">Save Shift</button>

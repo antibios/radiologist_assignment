@@ -59,11 +59,19 @@
             <label>Description</label>
         </div>
         <div class="field label border">
-            <input type="text" name="modality" required>
+            <select name="modality">
+                {{ range .Modalities }}
+                <option value="{{.Code}}">{{.Name}}</option>
+                {{ end }}
+            </select>
             <label>Modality</label>
         </div>
         <div class="field label border">
-            <input type="text" name="body_part" required>
+            <select name="body_part">
+                {{ range .BodyParts }}
+                <option value="{{.Name}}">{{.Name}}</option>
+                {{ end }}
+            </select>
             <label>Body Part</label>
         </div>
         <nav class="right-align">
@@ -87,11 +95,19 @@
             <label>Description</label>
         </div>
         <div class="field label border">
-            <input type="text" name="modality" id="edit-modality" required>
+            <select name="modality" id="edit-modality">
+                {{ range .Modalities }}
+                <option value="{{.Code}}">{{.Name}}</option>
+                {{ end }}
+            </select>
             <label>Modality</label>
         </div>
         <div class="field label border">
-            <input type="text" name="body_part" id="edit-body-part" required>
+            <select name="body_part" id="edit-body-part">
+                {{ range .BodyParts }}
+                <option value="{{.Name}}">{{.Name}}</option>
+                {{ end }}
+            </select>
             <label>Body Part</label>
         </div>
         <nav class="right-align">
