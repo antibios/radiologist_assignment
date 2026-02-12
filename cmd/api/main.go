@@ -50,6 +50,35 @@ var (
 		{ID: 2, Code: "MRKNEE", Description: "MRI Knee", Modality: "MRI", BodyPart: "Knee", CreatedAt: time.Now(), UpdatedAt: time.Now()},
 	}
 
+	configMu sync.RWMutex
+	refData  = &models.ReferenceData{
+		Sites: []models.Site{
+			{Code: "SiteA", Name: "Site A Clinic"},
+			{Code: "SiteB", Name: "Site B Hospital"},
+		},
+		Modalities: []models.Modality{
+			{Code: "CT", Name: "Computed Tomography"},
+			{Code: "MRI", Name: "Magnetic Resonance Imaging"},
+			{Code: "US", Name: "Ultrasound"},
+			{Code: "XR", Name: "X-Ray"},
+		},
+		BodyParts: []models.BodyPart{
+			{Name: "Head"},
+			{Name: "Chest"},
+			{Name: "Abdomen"},
+			{Name: "Pelvis"},
+			{Name: "Spine"},
+			{Name: "Extremity"},
+		},
+		Credentials: []models.Credential{
+			{Code: "CT", Name: "CT Certified"},
+			{Code: "MRI", Name: "MRI Certified"},
+			{Code: "US", Name: "Ultrasound Certified"},
+			{Code: "Neuro", Name: "Neuroradiology"},
+			{Code: "MSK", Name: "Musculoskeletal"},
+		},
+	}
+
 	// Mock Radiologists for assignment
 	radiologists = []*models.Radiologist{
 		{ID: "rad1", FirstName: "John", LastName: "Doe", MaxConcurrentStudies: 5, Status: "active"},
@@ -239,6 +268,16 @@ func main() {
 	http.HandleFunc("/api/procedures", handleAPIProcedures)
 	http.HandleFunc("/api/procedures/edit", handleEditProcedure)
 	http.HandleFunc("/api/procedures/delete", handleDeleteProcedure)
+
+	http.HandleFunc("/config", handleConfig)
+	http.HandleFunc("/api/config/sites", handleAPISites)
+	http.HandleFunc("/api/config/sites/delete", handleDeleteSite)
+	http.HandleFunc("/api/config/modalities", handleAPIModalities)
+	http.HandleFunc("/api/config/modalities/delete", handleDeleteModality)
+	http.HandleFunc("/api/config/bodyparts", handleAPIBodyParts)
+	http.HandleFunc("/api/config/bodyparts/delete", handleDeleteBodyPart)
+	http.HandleFunc("/api/config/credentials", handleAPICredentials)
+	http.HandleFunc("/api/config/credentials/delete", handleDeleteCredential)
 
 	http.HandleFunc("/calendar", handleCalendar)
 
@@ -642,6 +681,136 @@ func handleDeleteProcedure(w http.ResponseWriter, r *http.Request) {
 		proceduresMu.Unlock()
 
 		http.Redirect(w, r, "/procedures", http.StatusSeeOther)
+		return
+	}
+}
+
+// Config Handlers
+
+func handleConfig(w http.ResponseWriter, r *http.Request) {
+	configMu.RLock()
+	data := refData
+	configMu.RUnlock()
+
+	render(w, "config", data, "ui/templates/config.html")
+}
+
+func handleAPISites(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		code := r.FormValue("code")
+		name := r.FormValue("name")
+		configMu.Lock()
+		refData.Sites = append(refData.Sites, models.Site{Code: code, Name: name})
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
+func handleDeleteSite(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		code := r.FormValue("code")
+		configMu.Lock()
+		newSites := []models.Site{}
+		for _, s := range refData.Sites {
+			if s.Code != code {
+				newSites = append(newSites, s)
+			}
+		}
+		refData.Sites = newSites
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+}
+
+func handleAPIModalities(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		code := r.FormValue("code")
+		name := r.FormValue("name")
+		configMu.Lock()
+		refData.Modalities = append(refData.Modalities, models.Modality{Code: code, Name: name})
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+}
+
+func handleDeleteModality(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		code := r.FormValue("code")
+		configMu.Lock()
+		newMods := []models.Modality{}
+		for _, m := range refData.Modalities {
+			if m.Code != code {
+				newMods = append(newMods, m)
+			}
+		}
+		refData.Modalities = newMods
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+}
+
+func handleAPIBodyParts(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		name := r.FormValue("name")
+		configMu.Lock()
+		refData.BodyParts = append(refData.BodyParts, models.BodyPart{Name: name})
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+}
+
+func handleDeleteBodyPart(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		name := r.FormValue("name")
+		configMu.Lock()
+		newBPs := []models.BodyPart{}
+		for _, bp := range refData.BodyParts {
+			if bp.Name != name {
+				newBPs = append(newBPs, bp)
+			}
+		}
+		refData.BodyParts = newBPs
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+}
+
+func handleAPICredentials(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		code := r.FormValue("code")
+		name := r.FormValue("name")
+		configMu.Lock()
+		refData.Credentials = append(refData.Credentials, models.Credential{Code: code, Name: name})
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+}
+
+func handleDeleteCredential(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		code := r.FormValue("code")
+		configMu.Lock()
+		newCreds := []models.Credential{}
+		for _, c := range refData.Credentials {
+			if c.Code != code {
+				newCreds = append(newCreds, c)
+			}
+		}
+		refData.Credentials = newCreds
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
 		return
 	}
 }
