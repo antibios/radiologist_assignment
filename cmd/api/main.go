@@ -271,12 +271,16 @@ func main() {
 
 	http.HandleFunc("/config", handleConfig)
 	http.HandleFunc("/api/config/sites", handleAPISites)
+	http.HandleFunc("/api/config/sites/edit", handleEditSite)
 	http.HandleFunc("/api/config/sites/delete", handleDeleteSite)
 	http.HandleFunc("/api/config/modalities", handleAPIModalities)
+	http.HandleFunc("/api/config/modalities/edit", handleEditModality)
 	http.HandleFunc("/api/config/modalities/delete", handleDeleteModality)
 	http.HandleFunc("/api/config/bodyparts", handleAPIBodyParts)
+	http.HandleFunc("/api/config/bodyparts/edit", handleEditBodyPart)
 	http.HandleFunc("/api/config/bodyparts/delete", handleDeleteBodyPart)
 	http.HandleFunc("/api/config/credentials", handleAPICredentials)
+	http.HandleFunc("/api/config/credentials/edit", handleEditCredential)
 	http.HandleFunc("/api/config/credentials/delete", handleDeleteCredential)
 
 	http.HandleFunc("/calendar", handleCalendar)
@@ -729,6 +733,31 @@ func handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleEditSite(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		originalCode := r.FormValue("original_code")
+		code := r.FormValue("code")
+		name := r.FormValue("name")
+
+		configMu.Lock()
+		for i, s := range refData.Sites {
+			if s.Code == originalCode {
+				refData.Sites[i].Code = code
+				refData.Sites[i].Name = name
+				break
+			}
+		}
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
 func handleAPIModalities(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		code := r.FormValue("code")
@@ -756,6 +785,31 @@ func handleDeleteModality(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/config", http.StatusSeeOther)
 		return
 	}
+}
+
+func handleEditModality(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		originalCode := r.FormValue("original_code")
+		code := r.FormValue("code")
+		name := r.FormValue("name")
+
+		configMu.Lock()
+		for i, m := range refData.Modalities {
+			if m.Code == originalCode {
+				refData.Modalities[i].Code = code
+				refData.Modalities[i].Name = name
+				break
+			}
+		}
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 }
 
 func handleAPIBodyParts(w http.ResponseWriter, r *http.Request) {
@@ -786,6 +840,29 @@ func handleDeleteBodyPart(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleEditBodyPart(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		originalName := r.FormValue("original_name")
+		name := r.FormValue("name")
+
+		configMu.Lock()
+		for i, bp := range refData.BodyParts {
+			if bp.Name == originalName {
+				refData.BodyParts[i].Name = name
+				break
+			}
+		}
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
 func handleAPICredentials(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		code := r.FormValue("code")
@@ -796,6 +873,31 @@ func handleAPICredentials(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/config", http.StatusSeeOther)
 		return
 	}
+}
+
+func handleEditCredential(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		originalCode := r.FormValue("original_code")
+		code := r.FormValue("code")
+		name := r.FormValue("name")
+
+		configMu.Lock()
+		for i, c := range refData.Credentials {
+			if c.Code == originalCode {
+				refData.Credentials[i].Code = code
+				refData.Credentials[i].Name = name
+				break
+			}
+		}
+		configMu.Unlock()
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 }
 
 func handleDeleteCredential(w http.ResponseWriter, r *http.Request) {
