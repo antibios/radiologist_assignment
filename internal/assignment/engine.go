@@ -25,6 +25,7 @@ func NewEngine(db DataStore, roster RosterService, rules RulesService) *Engine {
 type candidate struct {
 	Radiologist *models.Radiologist
 	ShiftID     int64
+	CurrentLoad int64
 }
 
 func (e *Engine) Assign(ctx context.Context, study *models.Study) (*models.Assignment, error) {
@@ -269,6 +270,7 @@ func (e *Engine) filterByCapacity(ctx context.Context, candidates []*candidate) 
 	var filtered []*candidate
 	for _, c := range candidates {
 		load := workloads[c.Radiologist.ID]
+		c.CurrentLoad = load
 		if int(load) < c.Radiologist.MaxConcurrentStudies || c.Radiologist.MaxConcurrentStudies == 0 {
 			filtered = append(filtered, c)
 		}
@@ -281,22 +283,14 @@ func (e *Engine) loadBalance(ctx context.Context, candidates []*candidate) (*can
 		return nil, nil
 	}
 
-	ids := make([]string, len(candidates))
-	for i, c := range candidates {
-		ids[i] = c.Radiologist.ID
-	}
-
-	workloads, err := e.db.GetRadiologistWorkloads(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
+	// Workloads are already cached in candidates from filterByCapacity
 
 	// Pick candidate with lowest load
 	var best *candidate
 	minLoad := int64(999999)
 
 	for _, c := range candidates {
-		load := workloads[c.Radiologist.ID]
+		load := c.CurrentLoad
 		if load < minLoad {
 			minLoad = load
 			best = c
