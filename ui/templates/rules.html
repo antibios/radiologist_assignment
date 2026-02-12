@@ -36,7 +36,7 @@
                     {{ end }}
                 </td>
                 <td>
-                    <button class="circle transparent small" onclick="openEditModal({{.ID}}, '{{.Name}}', '{{.ActionType}}')">
+                    <button class="circle transparent small" onclick='openEditModal({{.ID}}, "{{.Name}}", "{{.ActionType}}", "{{.ActionTarget}}", {{json .ConditionFilters}})'>
                         <i>edit</i>
                     </button>
                     <form action="/api/rules/delete" method="POST" style="display:inline;">
@@ -66,9 +66,36 @@
                 <option value="ESCALATE">Escalate</option>
                 <option value="ASSIGN_TO_SHIFT">Assign to Shift</option>
                 <option value="ASSIGN_TO_RADIOLOGIST">Assign to Radiologist</option>
+                <option value="ASSIGN_TO_WORKLIST">Assign to Worklist</option>
             </select>
             <label>Action Type</label>
         </div>
+        <div class="field label border">
+            <input type="text" name="target">
+            <label>Action Target (ID, Shift ID, Worklist)</label>
+        </div>
+
+        <h6>Criteria</h6>
+        <div class="field label border suffix">
+            <select id="add-criteria-select-add">
+                <option value="" disabled selected>Select Criteria to Add</option>
+                <option value="urgency">Exam Priority (Urgency)</option>
+                <option value="site">Exam Site Code</option>
+                <option value="ordering_physician">Referrer Details</option>
+                <option value="patient_age_min">Patient Age (Min)</option>
+                <option value="patient_age_max">Patient Age (Max)</option>
+                <option value="procedure_code">Procedure Code</option>
+                <option value="procedure_description">Procedure Description</option>
+                <option value="prior_location">Prior Location</option>
+                <option value="days_of_week">Days of Week (comma-sep)</option>
+                <option value="technician">Technician</option>
+                <option value="transcriptionist">Transcriptionist</option>
+            </select>
+            <label>Add Condition</label>
+            <button type="button" onclick="addCriteria('add')">Add</button>
+        </div>
+        <div id="criteria-container-add"></div>
+
         <nav class="right-align">
             <button type="button" class="transparent link" onclick="ui('#add-rule-modal')">Cancel</button>
             <button type="submit" class="primary">Save Rule</button>
@@ -91,9 +118,36 @@
                 <option value="ESCALATE">Escalate</option>
                 <option value="ASSIGN_TO_SHIFT">Assign to Shift</option>
                 <option value="ASSIGN_TO_RADIOLOGIST">Assign to Radiologist</option>
+                <option value="ASSIGN_TO_WORKLIST">Assign to Worklist</option>
             </select>
             <label>Action Type</label>
         </div>
+        <div class="field label border">
+            <input type="text" name="target" id="edit-target">
+            <label>Action Target (ID, Shift ID, Worklist)</label>
+        </div>
+
+        <h6>Criteria</h6>
+        <div class="field label border suffix">
+            <select id="add-criteria-select-edit">
+                <option value="" disabled selected>Select Criteria to Add</option>
+                <option value="urgency">Exam Priority (Urgency)</option>
+                <option value="site">Exam Site Code</option>
+                <option value="ordering_physician">Referrer Details</option>
+                <option value="patient_age_min">Patient Age (Min)</option>
+                <option value="patient_age_max">Patient Age (Max)</option>
+                <option value="procedure_code">Procedure Code</option>
+                <option value="procedure_description">Procedure Description</option>
+                <option value="prior_location">Prior Location</option>
+                <option value="days_of_week">Days of Week (comma-sep)</option>
+                <option value="technician">Technician</option>
+                <option value="transcriptionist">Transcriptionist</option>
+            </select>
+            <label>Add Condition</label>
+            <button type="button" onclick="addCriteria('edit')">Add</button>
+        </div>
+        <div id="criteria-container-edit"></div>
+
         <nav class="right-align">
             <button type="button" class="transparent link" onclick="ui('#edit-rule-modal')">Cancel</button>
             <button type="submit" class="primary">Update Rule</button>
@@ -102,11 +156,71 @@
 </dialog>
 
 <script>
-    function openEditModal(id, name, action) {
+    const criteriaMap = {
+        'urgency': 'Exam Priority (Urgency)',
+        'site': 'Exam Site Code',
+        'ordering_physician': 'Referrer Details',
+        'patient_age_min': 'Patient Age (Min)',
+        'patient_age_max': 'Patient Age (Max)',
+        'procedure_code': 'Procedure Code',
+        'procedure_description': 'Procedure Description',
+        'prior_location': 'Prior Location',
+        'days_of_week': 'Days of Week',
+        'technician': 'Technician',
+        'transcriptionist': 'Transcriptionist'
+    };
+
+    function addCriteriaInput(containerId, key, value) {
+        const container = document.getElementById(containerId);
+        const labelText = criteriaMap[key] || key;
+        const inputName = 'filter_' + key;
+
+        const div = document.createElement('div');
+        div.className = 'field label border suffix';
+        div.innerHTML = `
+            <input type="text" name="${inputName}" value="${value}">
+            <label>${labelText}</label>
+            <a class="transparent circle" href="javascript:void(0)" onclick="this.parentElement.remove()"><i>close</i></a>
+        `;
+        container.appendChild(div);
+        ui();
+    }
+
+    function addCriteria(mode) {
+        const selectId = 'add-criteria-select-' + mode;
+        const containerId = 'criteria-container-' + mode;
+        const select = document.getElementById(selectId);
+        const key = select.value;
+        if (!key) return;
+
+        addCriteriaInput(containerId, key, '');
+        select.value = "";
+    }
+
+    function openEditModal(id, name, action, target, filters) {
         document.getElementById('edit-id').value = id;
         document.getElementById('edit-name').value = name;
         document.getElementById('edit-action').value = action;
-        document.getElementById('edit-rule-modal').setAttribute('open', 'true');
+        document.getElementById('edit-target').value = target || '';
+
+        const container = document.getElementById('criteria-container-edit');
+        container.innerHTML = '';
+
+        if (filters) {
+            for (const [key, value] of Object.entries(filters)) {
+                let valStr = value;
+                if (Array.isArray(value)) {
+                    valStr = value.join(', ');
+                }
+                if (criteriaMap[key]) {
+                    addCriteriaInput('criteria-container-edit', key, valStr);
+                }
+            }
+        }
+
+        ui('#edit-rule-modal');
+        // Ensure open attribute is set for test visibility if ui() animation is slow or different
+        document.getElementById('edit-rule-modal').setAttribute('open', '');
     }
 </script>
 {{ end }}

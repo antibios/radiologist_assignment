@@ -16,6 +16,9 @@ type Study struct {
 	OrderingPhysician    string    `json:"ordering_physician"`
 	PatientAge           int       `json:"patient_age"`
 	IngestTime           time.Time `json:"ingest_time"` // Added for internal tracking
+	PriorLocation        string    `json:"prior_location"`
+	Technician           string    `json:"technician"`
+	Transcriptionist     string    `json:"transcriptionist"`
 }
 
 func (s *Study) GetExamTime() time.Time {
