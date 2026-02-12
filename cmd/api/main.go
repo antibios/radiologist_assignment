@@ -629,6 +629,10 @@ func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
 
 		studyID := r.FormValue("study_id")
 		modality := r.FormValue("modality")
+		procedureCode := r.FormValue("procedure_code")
+		orderingPhysician := r.FormValue("ordering_physician")
+		patientAgeStr := r.FormValue("patient_age")
+		patientAge, _ := strconv.Atoi(patientAgeStr)
 
 		ingestTimeStr := r.FormValue("ingest_time")
 		ingestTime := time.Now()
@@ -639,12 +643,15 @@ func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
 		}
 
 		study := &models.Study{
-			ID:         studyID,
-			Modality:   modality,
-			BodyPart:   "General",
-			Site:       "SiteA",
-			Timestamp:  ingestTime.Format("20060102150405"),
-			IngestTime: ingestTime,
+			ID:                studyID,
+			Modality:          modality,
+			BodyPart:          "General",
+			Site:              "SiteA",
+			ProcedureCode:     procedureCode,
+			OrderingPhysician: orderingPhysician,
+			PatientAge:        patientAge,
+			Timestamp:         ingestTime.Format("20060102150405"),
+			IngestTime:        ingestTime,
 		}
 
 		assignment, err := engine.Assign(context.Background(), study)
