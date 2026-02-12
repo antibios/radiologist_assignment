@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"radiology-assignment/internal/models"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -53,10 +54,22 @@ func (e *Engine) Assign(ctx context.Context, study *models.Study) (*models.Assig
 	}
 
 	// Step 3: Apply rule-based assignment pipeline
-	selected, escalated, err := e.evaluateRules(ctx, study, candidates)
+	selected, worklistTarget, escalated, err := e.evaluateRules(ctx, study, candidates)
 	if err != nil {
 		return nil, err
 	}
+
+	if worklistTarget != "" {
+		return &models.Assignment{
+			StudyID:       study.ID,
+			RadiologistID: "WORKLIST",
+			ShiftID:       0,
+			AssignedAt:    study.IngestTime,
+			Escalated:     escalated,
+			Strategy:      worklistTarget,
+		}, nil
+	}
+
 	if selected == nil {
 		return nil, fmt.Errorf("no candidate selected after rule evaluation")
 	}
@@ -125,7 +138,7 @@ func (e *Engine) resolveRadiologists(ctx context.Context, shifts []*models.Shift
 	return result, nil
 }
 
-func (e *Engine) evaluateRules(ctx context.Context, study *models.Study, candidates []*candidate) (*candidate, bool, error) {
+func (e *Engine) evaluateRules(ctx context.Context, study *models.Study, candidates []*candidate) (*candidate, string, bool, error) {
 	rules := e.rules.GetActive()
 
 	// Sort rules by priority (lower number = higher priority)
@@ -135,6 +148,7 @@ func (e *Engine) evaluateRules(ctx context.Context, study *models.Study, candida
 
 	currentCandidates := candidates
 	isEscalated := false
+	var worklistTarget string
 	var matchedRule *models.AssignmentRule
 
 	for _, rule := range rules {
@@ -155,6 +169,19 @@ func (e *Engine) evaluateRules(ctx context.Context, study *models.Study, candida
 				currentCandidates = e.filterByRadiologistID(currentCandidates, target)
 			}
 
+		case "ASSIGN_TO_SHIFT":
+			if target := rule.ActionTarget; target != "" {
+				shiftID, err := strconv.ParseInt(target, 10, 64)
+				if err == nil {
+					currentCandidates = e.filterByShiftID(currentCandidates, shiftID)
+				}
+			}
+
+		case "ASSIGN_TO_WORKLIST":
+			worklistTarget = rule.ActionTarget
+			// If assigned to worklist, we stop processing candidates and return immediately
+			return nil, worklistTarget, isEscalated, nil
+
 		case "ESCALATE":
 			isEscalated = true
 		}
@@ -167,23 +194,23 @@ func (e *Engine) evaluateRules(ctx context.Context, study *models.Study, candida
 	// Let's filter by capacity.
 	currentCandidates, err := e.filterByCapacity(ctx, currentCandidates)
 	if err != nil {
-		return nil, false, err
+		return nil, "", false, err
 	}
 
 	if len(currentCandidates) == 0 {
-		return nil, isEscalated, nil
+		return nil, "", isEscalated, nil
 	}
 
 	// Load Balance
 	selected, err := e.loadBalance(ctx, currentCandidates)
 	if err != nil {
-		return nil, false, err
+		return nil, "", false, err
 	}
 
 	// If we had a matched rule, we might note it in the assignment (not added to return yet)
 	_ = matchedRule
 
-	return selected, isEscalated, nil
+	return selected, "", isEscalated, nil
 }
 
 func (e *Engine) ruleMatches(rule *models.AssignmentRule, study *models.Study) bool {
@@ -267,6 +294,34 @@ func (e *Engine) ruleMatches(rule *models.AssignmentRule, study *models.Study) b
 	// 9. Day of Week
 	if val, ok := filters["days_of_week"]; ok {
 		if !e.matchesDayOfWeek(study.GetExamTime(), val) {
+			return false
+		}
+	}
+
+	// 10. Procedure Description
+	if val, ok := filters["procedure_description"]; ok {
+		if study.ProcedureDescription != val.(string) {
+			return false
+		}
+	}
+
+	// 11. Prior Location
+	if val, ok := filters["prior_location"]; ok {
+		if study.PriorLocation != val.(string) {
+			return false
+		}
+	}
+
+	// 12. Technician
+	if val, ok := filters["technician"]; ok {
+		if study.Technician != val.(string) {
+			return false
+		}
+	}
+
+	// 13. Transcriptionist
+	if val, ok := filters["transcriptionist"]; ok {
+		if study.Transcriptionist != val.(string) {
 			return false
 		}
 	}
@@ -358,6 +413,16 @@ func (e *Engine) filterByCompetency(candidates []*candidate, requiredCredential 
 			}
 		}
 		if hasCred {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
+func (e *Engine) filterByShiftID(candidates []*candidate, shiftID int64) []*candidate {
+	var filtered []*candidate
+	for _, c := range candidates {
+		if c.ShiftID == shiftID {
 			filtered = append(filtered, c)
 		}
 	}

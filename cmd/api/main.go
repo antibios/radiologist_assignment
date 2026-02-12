@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -300,6 +301,14 @@ func resolveTemplatePath(path string) string {
 	return path
 }
 
+func toJSON(v interface{}) template.HTML {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return template.HTML(b)
+}
+
 func render(w http.ResponseWriter, tmplName string, data interface{}, files ...string) {
 	// Include layout in all renders
 	var allFiles []string
@@ -308,7 +317,11 @@ func render(w http.ResponseWriter, tmplName string, data interface{}, files ...s
 		allFiles = append(allFiles, resolveTemplatePath(f))
 	}
 
-	tmpl, err := template.ParseFiles(allFiles...)
+	tmpl := template.New("layout").Funcs(template.FuncMap{
+		"json": toJSON,
+	})
+
+	tmpl, err := tmpl.ParseFiles(allFiles...)
 	if err != nil {
 		http.Error(w, "Template Parse Error: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -362,6 +375,56 @@ func handleRules(w http.ResponseWriter, r *http.Request) {
 	render(w, "rules", data, "ui/templates/rules.html")
 }
 
+func extractFilters(r *http.Request) map[string]interface{} {
+	filters := make(map[string]interface{})
+
+	if val := r.FormValue("filter_urgency"); val != "" {
+		filters["urgency"] = val
+	}
+	if val := r.FormValue("filter_site"); val != "" {
+		filters["site"] = val
+	}
+	if val := r.FormValue("filter_ordering_physician"); val != "" {
+		filters["ordering_physician"] = val
+	}
+	if val := r.FormValue("filter_procedure_code"); val != "" {
+		filters["procedure_code"] = val
+	}
+	if val := r.FormValue("filter_procedure_description"); val != "" {
+		filters["procedure_description"] = val
+	}
+	if val := r.FormValue("filter_prior_location"); val != "" {
+		filters["prior_location"] = val
+	}
+	if val := r.FormValue("filter_technician"); val != "" {
+		filters["technician"] = val
+	}
+	if val := r.FormValue("filter_transcriptionist"); val != "" {
+		filters["transcriptionist"] = val
+	}
+	if val := r.FormValue("filter_patient_age_min"); val != "" {
+		if v, err := strconv.Atoi(val); err == nil {
+			filters["patient_age_min"] = v
+		}
+	}
+	if val := r.FormValue("filter_patient_age_max"); val != "" {
+		if v, err := strconv.Atoi(val); err == nil {
+			filters["patient_age_max"] = v
+		}
+	}
+	if val := r.FormValue("filter_days_of_week"); val != "" {
+		// split by comma
+		days := strings.Split(val, ",")
+		// trim spaces
+		for i := range days {
+			days[i] = strings.TrimSpace(days[i])
+		}
+		filters["days_of_week"] = days
+	}
+
+	return filters
+}
+
 func handleAPIRules(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		if err := r.ParseForm(); err != nil {
@@ -371,14 +434,18 @@ func handleAPIRules(w http.ResponseWriter, r *http.Request) {
 
 		name := r.FormValue("name")
 		action := r.FormValue("action")
+		target := r.FormValue("target")
+		filters := extractFilters(r)
 
 		rulesMu.Lock()
 		newRule := &models.AssignmentRule{
-			ID:            int64(len(rules) + 1),
-			Name:          name,
-			ActionType:    action,
-			Enabled:       true,
-			PriorityOrder: len(rules) + 1,
+			ID:               int64(len(rules) + 1),
+			Name:             name,
+			ActionType:       action,
+			ActionTarget:     target,
+			ConditionFilters: filters,
+			Enabled:          true,
+			PriorityOrder:    len(rules) + 1,
 		}
 		rules = append(rules, newRule)
 		rulesMu.Unlock()
@@ -399,6 +466,8 @@ func handleEditRule(w http.ResponseWriter, r *http.Request) {
 		idStr := r.FormValue("id")
 		name := r.FormValue("name")
 		action := r.FormValue("action")
+		target := r.FormValue("target")
+		filters := extractFilters(r)
 
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
@@ -411,6 +480,8 @@ func handleEditRule(w http.ResponseWriter, r *http.Request) {
 			if rule.ID == id {
 				rule.Name = name
 				rule.ActionType = action
+				rule.ActionTarget = target
+				rule.ConditionFilters = filters
 				break
 			}
 		}
@@ -922,16 +993,34 @@ func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// New fields
+		urgency := r.FormValue("urgency")
+		site := r.FormValue("site")
+		procedureDesc := r.FormValue("procedure_description")
+		priorLocation := r.FormValue("prior_location")
+		technician := r.FormValue("technician")
+		transcriptionist := r.FormValue("transcriptionist")
+
+		// Default site if not provided
+		if site == "" {
+			site = "SiteA"
+		}
+
 		study := &models.Study{
-			ID:                studyID,
-			Modality:          modality,
-			BodyPart:          "General",
-			Site:              "SiteA",
-			ProcedureCode:     procedureCode,
-			OrderingPhysician: orderingPhysician,
-			PatientAge:        patientAge,
-			Timestamp:         ingestTime.Format("20060102150405"),
-			IngestTime:        ingestTime,
+			ID:                   studyID,
+			Modality:             modality,
+			BodyPart:             "General",
+			Site:                 site,
+			ProcedureCode:        procedureCode,
+			OrderingPhysician:    orderingPhysician,
+			PatientAge:           patientAge,
+			Timestamp:            ingestTime.Format("20060102150405"),
+			IngestTime:           ingestTime,
+			Urgency:              urgency,
+			ProcedureDescription: procedureDesc,
+			PriorLocation:        priorLocation,
+			Technician:           technician,
+			Transcriptionist:     transcriptionist,
 		}
 
 		assignment, err := engine.Assign(context.Background(), study)
@@ -940,7 +1029,11 @@ func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		fmt.Fprintf(w, "Assigned to %s", assignment.RadiologistID)
+		if assignment.RadiologistID == "WORKLIST" {
+			fmt.Fprintf(w, "Assigned to Worklist: %s", assignment.Strategy)
+		} else {
+			fmt.Fprintf(w, "Assigned to %s", assignment.RadiologistID)
+		}
 		return
 	}
 	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
