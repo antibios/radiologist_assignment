@@ -1,0 +1,211 @@
+{{ define "config" }}
+<div class="row">
+    <div class="col">
+        <h4>System Configuration</h4>
+    </div>
+</div>
+
+<div class="tabs">
+    <a data-ui="#sites">Sites</a>
+    <a data-ui="#modalities">Modalities</a>
+    <a data-ui="#bodyparts">Body Parts</a>
+    <a data-ui="#credentials">Credentials</a>
+</div>
+
+<div id="sites" class="page">
+    <div class="row">
+        <div class="col">
+            <h5>Site Codes</h5>
+        </div>
+        <div class="col right-align">
+            <button class="circle" onclick="ui('#addSiteModal')"><i>add</i></button>
+        </div>
+    </div>
+    <table class="stripes">
+        <thead>
+            <tr><th>Code</th><th>Name</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            {{ range .Sites }}
+            <tr>
+                <td>{{ .Code }}</td>
+                <td>{{ .Name }}</td>
+                <td>
+                    <form action="/api/config/sites/delete" method="POST">
+                        <input type="hidden" name="code" value="{{ .Code }}">
+                        <button class="circle small transparent error-text" type="submit"><i>delete</i></button>
+                    </form>
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+
+<div id="modalities" class="page">
+    <div class="row">
+        <div class="col">
+            <h5>Modalities</h5>
+        </div>
+        <div class="col right-align">
+            <button class="circle" onclick="ui('#addModalityModal')"><i>add</i></button>
+        </div>
+    </div>
+    <table class="stripes">
+        <thead>
+            <tr><th>Code</th><th>Name</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            {{ range .Modalities }}
+            <tr>
+                <td>{{ .Code }}</td>
+                <td>{{ .Name }}</td>
+                <td>
+                    <form action="/api/config/modalities/delete" method="POST">
+                        <input type="hidden" name="code" value="{{ .Code }}">
+                        <button class="circle small transparent error-text" type="submit"><i>delete</i></button>
+                    </form>
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+
+<div id="bodyparts" class="page">
+    <div class="row">
+        <div class="col">
+            <h5>Body Parts</h5>
+        </div>
+        <div class="col right-align">
+            <button class="circle" onclick="ui('#addBodyPartModal')"><i>add</i></button>
+        </div>
+    </div>
+    <table class="stripes">
+        <thead>
+            <tr><th>Name</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            {{ range .BodyParts }}
+            <tr>
+                <td>{{ .Name }}</td>
+                <td>
+                    <form action="/api/config/bodyparts/delete" method="POST">
+                        <input type="hidden" name="name" value="{{ .Name }}">
+                        <button class="circle small transparent error-text" type="submit"><i>delete</i></button>
+                    </form>
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+
+<div id="credentials" class="page">
+    <div class="row">
+        <div class="col">
+            <h5>Credentials</h5>
+        </div>
+        <div class="col right-align">
+            <button class="circle" onclick="ui('#addCredentialModal')"><i>add</i></button>
+        </div>
+    </div>
+    <table class="stripes">
+        <thead>
+            <tr><th>Code</th><th>Name</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            {{ range .Credentials }}
+            <tr>
+                <td>{{ .Code }}</td>
+                <td>{{ .Name }}</td>
+                <td>
+                    <form action="/api/config/credentials/delete" method="POST">
+                        <input type="hidden" name="code" value="{{ .Code }}">
+                        <button class="circle small transparent error-text" type="submit"><i>delete</i></button>
+                    </form>
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modals -->
+
+<div class="modal" id="addSiteModal">
+    <div class="modal-content">
+        <h5>Add Site</h5>
+        <form action="/api/config/sites" method="POST">
+            <div class="field label border">
+                <input type="text" name="code" required>
+                <label>Code</label>
+            </div>
+            <div class="field label border">
+                <input type="text" name="name" required>
+                <label>Name</label>
+            </div>
+            <div class="row">
+                <button type="button" class="transparent" onclick="ui('#addSiteModal')">Cancel</button>
+                <button type="submit">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="addModalityModal">
+    <div class="modal-content">
+        <h5>Add Modality</h5>
+        <form action="/api/config/modalities" method="POST">
+            <div class="field label border">
+                <input type="text" name="code" required>
+                <label>Code</label>
+            </div>
+            <div class="field label border">
+                <input type="text" name="name" required>
+                <label>Name</label>
+            </div>
+            <div class="row">
+                <button type="button" class="transparent" onclick="ui('#addModalityModal')">Cancel</button>
+                <button type="submit">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="addBodyPartModal">
+    <div class="modal-content">
+        <h5>Add Body Part</h5>
+        <form action="/api/config/bodyparts" method="POST">
+            <div class="field label border">
+                <input type="text" name="name" required>
+                <label>Name</label>
+            </div>
+            <div class="row">
+                <button type="button" class="transparent" onclick="ui('#addBodyPartModal')">Cancel</button>
+                <button type="submit">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="addCredentialModal">
+    <div class="modal-content">
+        <h5>Add Credential</h5>
+        <form action="/api/config/credentials" method="POST">
+            <div class="field label border">
+                <input type="text" name="code" required>
+                <label>Code</label>
+            </div>
+            <div class="field label border">
+                <input type="text" name="name" required>
+                <label>Name</label>
+            </div>
+            <div class="row">
+                <button type="button" class="transparent" onclick="ui('#addCredentialModal')">Cancel</button>
+                <button type="submit">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+{{ end }}
