@@ -1,0 +1,114 @@
+{{ define "content" }}
+<div class="container">
+    <div class="row">
+        <div class="col max">
+            <h4>Procedure Management</h4>
+        </div>
+        <div class="col min">
+            <button class="primary" onclick="ui('#add-procedure-modal')">
+                <i>add</i>
+                <span>Add Procedure</span>
+            </button>
+        </div>
+    </div>
+
+    <table class="stripes">
+        <thead>
+            <tr>
+                <th>Code</th>
+                <th>Description</th>
+                <th>Modality</th>
+                <th>Body Part</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ range .Procedures }}
+            <tr>
+                <td>{{ .Code }}</td>
+                <td>{{ .Description }}</td>
+                <td>{{ .Modality }}</td>
+                <td>{{ .BodyPart }}</td>
+                <td>
+                    <button class="circle transparent small" onclick="openEditProcedure('{{ .Code }}', '{{ .Description }}', '{{ .Modality }}', '{{ .BodyPart }}')">
+                        <i>edit</i>
+                    </button>
+                    <form action="/api/procedures/delete" method="POST" style="display:inline;">
+                        <input type="hidden" name="code" value="{{ .Code }}">
+                        <button class="circle transparent small error-text" type="submit">
+                            <i>delete</i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Modal -->
+<dialog id="add-procedure-modal">
+    <h5>Add New Procedure</h5>
+    <form action="/api/procedures" method="POST">
+        <div class="field label border">
+            <input type="text" name="code" required>
+            <label>Code</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="description" required>
+            <label>Description</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="modality" required>
+            <label>Modality</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="body_part" required>
+            <label>Body Part</label>
+        </div>
+        <nav class="right-align">
+            <button type="button" class="transparent link" onclick="ui('#add-procedure-modal')">Cancel</button>
+            <button type="submit" class="primary">Save</button>
+        </nav>
+    </form>
+</dialog>
+
+<!-- Edit Modal -->
+<dialog id="edit-procedure-modal">
+    <h5>Edit Procedure</h5>
+    <form action="/api/procedures/edit" method="POST">
+        <input type="hidden" name="code" id="edit-code">
+        <div class="field label border">
+            <input type="text" id="edit-code-display" disabled>
+            <label>Code</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="description" id="edit-description" required>
+            <label>Description</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="modality" id="edit-modality" required>
+            <label>Modality</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="body_part" id="edit-body-part" required>
+            <label>Body Part</label>
+        </div>
+        <nav class="right-align">
+            <button type="button" class="transparent link" onclick="ui('#edit-procedure-modal')">Cancel</button>
+            <button type="submit" class="primary">Update</button>
+        </nav>
+    </form>
+</dialog>
+
+<script>
+    function openEditProcedure(code, desc, mod, body) {
+        document.getElementById('edit-code').value = code;
+        document.getElementById('edit-code-display').value = code;
+        document.getElementById('edit-description').value = desc;
+        document.getElementById('edit-modality').value = mod;
+        document.getElementById('edit-body-part').value = body;
+        ui('#edit-procedure-modal');
+    }
+</script>
+{{ end }}

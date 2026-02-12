@@ -446,6 +446,17 @@ CREATE TABLE audit_log (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE procedures (
+    id BIGSERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    description VARCHAR(255),
+    modality VARCHAR(50),
+    body_part VARCHAR(50),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_procedures_code ON procedures(code);
 CREATE INDEX idx_roster_shift ON roster_assignments(shift_id);
 CREATE INDEX idx_roster_radiologist ON roster_assignments(radiologist_id);
 CREATE INDEX idx_study_assignments_study ON study_assignments(study_id);
@@ -746,7 +757,38 @@ html{{ define "dashboard" }}
     </tbody>
 </table>
 {{ end }}
-6.3 Rules Management Template (ui/templates/rules.html)
+6.3 Procedure Management Template (ui/templates/procedures.html)
+html{{ define "procedures" }}
+<h1>Procedure Management</h1>
+<button onclick="showAddProcedureModal()">+ Add Procedure</button>
+<table>
+    <thead>
+        <tr>
+            <th>Code</th>
+            <th>Description</th>
+            <th>Modality</th>
+            <th>Body Part</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{ range .Procedures }}
+        <tr>
+            <td>{{ .Code }}</td>
+            <td>{{ .Description }}</td>
+            <td>{{ .Modality }}</td>
+            <td>{{ .BodyPart }}</td>
+            <td>
+                <button onclick="editProcedure('{{ .Code }}')">Edit</button>
+                <button onclick="deleteProcedure('{{ .Code }}')">Delete</button>
+            </td>
+        </tr>
+        {{ end }}
+    </tbody>
+</table>
+{{ end }}
+
+6.4 Rules Management Template (ui/templates/rules.html)
 html{{ define "rules" }}
 <h1>Assignment Rules</h1>
 

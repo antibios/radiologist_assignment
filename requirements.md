@@ -91,6 +91,10 @@ FR-4.5.3: The system shall support tiered escalation (e.g., 15-minute soft alert
 FR-4.6.1: The system shall track radiologist availability status (on-shift, available, at-capacity, offline).
 FR-4.6.2: The system shall implement load-balancing logic to distribute work evenly across available radiologists on a shift.
 FR-4.6.3: The system shall respect maximum concurrent study limits per radiologist if configured.
+4.7 Procedure Management
+FR-4.7.1: The system shall maintain a catalog of clinical procedures, each defined by a unique code and description.
+FR-4.7.2: The system shall support mapping each procedure code to a specific modality and body part to facilitate accurate normalization of inbound study data.
+FR-4.7.3: The system shall provide an interface for authorized users to create, update, and delete procedure definitions.
 
 5. Non-Functional Requirements
 5.1 Performance

@@ -44,6 +44,12 @@ var (
 		{ID: 1, ShiftID: 1, RadiologistID: "rad1", StartDate: time.Now(), Status: "active"},
 	}
 
+	proceduresMu sync.RWMutex
+	procedures   = []*models.Procedure{
+		{ID: 1, Code: "CTHEAD", Description: "CT Head without contrast", Modality: "CT", BodyPart: "Head", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{ID: 2, Code: "MRKNEE", Description: "MRI Knee", Modality: "MRI", BodyPart: "Knee", CreatedAt: time.Now(), UpdatedAt: time.Now()},
+	}
+
 	// Mock Radiologists for assignment
 	radiologists = []*models.Radiologist{
 		{ID: "rad1", FirstName: "John", LastName: "Doe", MaxConcurrentStudies: 5, Status: "active"},
@@ -203,6 +209,10 @@ type CalendarShift struct {
 	Radiologist string
 }
 
+type ProceduresData struct {
+	Procedures []*models.Procedure
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -224,6 +234,11 @@ func main() {
 	http.HandleFunc("/api/shifts/edit", handleEditShift)
 	http.HandleFunc("/api/shifts/delete", handleDeleteShift)
 	http.HandleFunc("/api/shifts/assign", handleAssignRadiologist)
+
+	http.HandleFunc("/procedures", handleProcedures)
+	http.HandleFunc("/api/procedures", handleAPIProcedures)
+	http.HandleFunc("/api/procedures/edit", handleEditProcedure)
+	http.HandleFunc("/api/procedures/delete", handleDeleteProcedure)
 
 	http.HandleFunc("/calendar", handleCalendar)
 
@@ -531,6 +546,102 @@ func handleAssignRadiologist(w http.ResponseWriter, r *http.Request) {
 		rosterMu.Unlock()
 
 		http.Redirect(w, r, "/shifts", http.StatusSeeOther)
+		return
+	}
+}
+
+// Procedure Handlers
+
+func handleProcedures(w http.ResponseWriter, r *http.Request) {
+	proceduresMu.RLock()
+	data := ProceduresData{
+		Procedures: procedures,
+	}
+	proceduresMu.RUnlock()
+
+	render(w, "procedures", data, "ui/templates/procedures.html")
+}
+
+func handleAPIProcedures(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		code := r.FormValue("code")
+		desc := r.FormValue("description")
+		modality := r.FormValue("modality")
+		bodyPart := r.FormValue("body_part")
+
+		proceduresMu.Lock()
+		newProc := &models.Procedure{
+			ID:          int64(len(procedures) + 1),
+			Code:        code,
+			Description: desc,
+			Modality:    modality,
+			BodyPart:    bodyPart,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+		procedures = append(procedures, newProc)
+		proceduresMu.Unlock()
+
+		http.Redirect(w, r, "/procedures", http.StatusSeeOther)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
+func handleEditProcedure(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		code := r.FormValue("code")
+		desc := r.FormValue("description")
+		modality := r.FormValue("modality")
+		bodyPart := r.FormValue("body_part")
+
+		proceduresMu.Lock()
+		for _, p := range procedures {
+			if p.Code == code {
+				p.Description = desc
+				p.Modality = modality
+				p.BodyPart = bodyPart
+				p.UpdatedAt = time.Now()
+				break
+			}
+		}
+		proceduresMu.Unlock()
+
+		http.Redirect(w, r, "/procedures", http.StatusSeeOther)
+		return
+	}
+}
+
+func handleDeleteProcedure(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		code := r.FormValue("code")
+
+		proceduresMu.Lock()
+		var newProcs []*models.Procedure
+		for _, p := range procedures {
+			if p.Code != code {
+				newProcs = append(newProcs, p)
+			}
+		}
+		procedures = newProcs
+		proceduresMu.Unlock()
+
+		http.Redirect(w, r, "/procedures", http.StatusSeeOther)
 		return
 	}
 }
