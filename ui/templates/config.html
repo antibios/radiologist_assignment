@@ -1,29 +1,34 @@
-{{ define "config" }}
+{{ define "content" }}
 <div class="row">
     <div class="col">
         <h4>System Configuration</h4>
     </div>
 </div>
 
-<div class="tabs">
-    <a data-ui="#sites">Sites</a>
-    <a data-ui="#modalities">Modalities</a>
-    <a data-ui="#bodyparts">Body Parts</a>
-    <a data-ui="#credentials">Credentials</a>
+<div style="padding: 1rem;">
+    <nav class="tabbed">
+        <a class="active" data-ui="#sites">Sites</a>
+        <a data-ui="#modalities">Modalities</a>
+        <a data-ui="#bodyparts">Body Parts</a>
+        <a data-ui="#credentials">Credentials</a>
+    </nav>
 </div>
-
-<div id="sites" class="page">
+<div id="sites" class="page active">
     <div class="row">
-        <div class="col">
+        <div class="col max">
             <h5>Site Codes</h5>
         </div>
-        <div class="col right-align">
-            <button class="circle" onclick="ui('#addSiteModal')"><i>add</i></button>
+        <div class="col min">
+            <button class="primary" onclick="ui('#addSiteModal')"><i>add</i>Add Site</button>
         </div>
     </div>
     <table class="stripes">
         <thead>
-            <tr><th>Code</th><th>Name</th><th>Actions</th></tr>
+            <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th class="min">Actions</th>
+            </tr>
         </thead>
         <tbody>
             {{ range .Sites }}
@@ -44,16 +49,20 @@
 
 <div id="modalities" class="page">
     <div class="row">
-        <div class="col">
+        <div class="col max">
             <h5>Modalities</h5>
         </div>
-        <div class="col right-align">
-            <button class="circle" onclick="ui('#addModalityModal')"><i>add</i></button>
+        <div class="col min">
+            <button class="primary" onclick="ui('#addModalityModal')"><i>add</i>Add Modality</button>
         </div>
     </div>
     <table class="stripes">
         <thead>
-            <tr><th>Code</th><th>Name</th><th>Actions</th></tr>
+            <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th class="min">Actions</th>
+            </tr>
         </thead>
         <tbody>
             {{ range .Modalities }}
@@ -74,16 +83,19 @@
 
 <div id="bodyparts" class="page">
     <div class="row">
-        <div class="col">
+        <div class="col max">
             <h5>Body Parts</h5>
         </div>
-        <div class="col right-align">
-            <button class="circle" onclick="ui('#addBodyPartModal')"><i>add</i></button>
+        <div class="col min">
+            <button class="primary" onclick="ui('#addBodyPartModal')"><i>add</i>Add Body Part</button>
         </div>
     </div>
     <table class="stripes">
         <thead>
-            <tr><th>Name</th><th>Actions</th></tr>
+            <tr>
+                <th>Name</th>
+                <th class="min">Actions</th>
+            </tr>
         </thead>
         <tbody>
             {{ range .BodyParts }}
@@ -103,16 +115,20 @@
 
 <div id="credentials" class="page">
     <div class="row">
-        <div class="col">
+        <div class="col max">
             <h5>Credentials</h5>
         </div>
-        <div class="col right-align">
-            <button class="circle" onclick="ui('#addCredentialModal')"><i>add</i></button>
+        <div class="col min">
+            <button class="primary" onclick="ui('#addCredentialModal')"><i>add</i>Add Credential</button>
         </div>
     </div>
     <table class="stripes">
         <thead>
-            <tr><th>Code</th><th>Name</th><th>Actions</th></tr>
+            <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th class="min">Actions</th>
+            </tr>
         </thead>
         <tbody>
             {{ range .Credentials }}
@@ -133,79 +149,72 @@
 
 <!-- Modals -->
 
-<div class="modal" id="addSiteModal">
-    <div class="modal-content">
-        <h5>Add Site</h5>
-        <form action="/api/config/sites" method="POST">
-            <div class="field label border">
-                <input type="text" name="code" required>
-                <label>Code</label>
-            </div>
-            <div class="field label border">
-                <input type="text" name="name" required>
-                <label>Name</label>
-            </div>
-            <div class="row">
-                <button type="button" class="transparent" onclick="ui('#addSiteModal')">Cancel</button>
-                <button type="submit">Save</button>
-            </div>
-        </form>
-    </div>
-</div>
+<dialog class="modal" id="addSiteModal">
+    <h5>Add Site</h5>
+    <form action="/api/config/sites" method="POST">
+        <div class="field label border">
+            <input type="text" name="code" required>
+            <label>Code</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="name" required>
+            <label>Name</label>
+        </div>
+        <div class="row">
+            <button type="button" class="transparent" onclick="ui('#addSiteModal')">Cancel</button>
+            <button type="submit">Save</button>
+        </div>
+    </form>
 
-<div class="modal" id="addModalityModal">
-    <div class="modal-content">
-        <h5>Add Modality</h5>
-        <form action="/api/config/modalities" method="POST">
-            <div class="field label border">
-                <input type="text" name="code" required>
-                <label>Code</label>
-            </div>
-            <div class="field label border">
-                <input type="text" name="name" required>
-                <label>Name</label>
-            </div>
-            <div class="row">
-                <button type="button" class="transparent" onclick="ui('#addModalityModal')">Cancel</button>
-                <button type="submit">Save</button>
-            </div>
-        </form>
-    </div>
-</div>
+</dialog>
 
-<div class="modal" id="addBodyPartModal">
-    <div class="modal-content">
-        <h5>Add Body Part</h5>
-        <form action="/api/config/bodyparts" method="POST">
-            <div class="field label border">
-                <input type="text" name="name" required>
-                <label>Name</label>
-            </div>
-            <div class="row">
-                <button type="button" class="transparent" onclick="ui('#addBodyPartModal')">Cancel</button>
-                <button type="submit">Save</button>
-            </div>
-        </form>
-    </div>
-</div>
+<dialog class="modal" id="addModalityModal">
+    <h5>Add Modality</h5>
+    <form action="/api/config/modalities" method="POST">
+        <div class="field label border">
+            <input type="text" name="code" required>
+            <label>Code</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="name" required>
+            <label>Name</label>
+        </div>
+        <div class="row">
+            <button type="button" class="transparent" onclick="ui('#addModalityModal')">Cancel</button>
+            <button type="submit">Save</button>
+        </div>
+    </form>
+</dialog>
 
-<div class="modal" id="addCredentialModal">
-    <div class="modal-content">
-        <h5>Add Credential</h5>
-        <form action="/api/config/credentials" method="POST">
-            <div class="field label border">
-                <input type="text" name="code" required>
-                <label>Code</label>
-            </div>
-            <div class="field label border">
-                <input type="text" name="name" required>
-                <label>Name</label>
-            </div>
-            <div class="row">
-                <button type="button" class="transparent" onclick="ui('#addCredentialModal')">Cancel</button>
-                <button type="submit">Save</button>
-            </div>
-        </form>
-    </div>
-</div>
+<dialog class="modal" id="addBodyPartModal">
+    <h5>Add Body Part</h5>
+    <form action="/api/config/bodyparts" method="POST">
+        <div class="field label border">
+            <input type="text" name="name" required>
+            <label>Name</label>
+        </div>
+        <div class="row">
+            <button type="button" class="transparent" onclick="ui('#addBodyPartModal')">Cancel</button>
+            <button type="submit">Save</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog class="modal" id="addCredentialModal">
+    <h5>Add Credential</h5>
+    <form action="/api/config/credentials" method="POST">
+        <div class="field label border">
+            <input type="text" name="code" required>
+            <label>Code</label>
+        </div>
+        <div class="field label border">
+            <input type="text" name="name" required>
+            <label>Name</label>
+        </div>
+        <div class="row">
+            <button type="button" class="transparent" onclick="ui('#addCredentialModal')">Cancel</button>
+            <button type="submit">Save</button>
+        </div>
+    </form>
+</dialog>
 {{ end }}
