@@ -1,59 +1,113 @@
 {{ define "layout" }}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Radiology Assignment Engine</title>
-<link href="https://cdn.jsdelivr.net/npm/beercss@4.0.2/dist/cdn/beer.min.css" rel="stylesheet">
-<script type="module" src="https://cdn.jsdelivr.net/npm/beercss@4.0.2/dist/cdn/beer.min.js"></script>
-<script type="module" src="https://cdn.jsdelivr.net/npm/material-dynamic-colors@1.1.4/dist/cdn/material-dynamic-colors.min.js"></script></head>
+    <link href="https://cdn.jsdelivr.net/npm/beercss@4.0.2/dist/cdn/beer.min.css" rel="stylesheet">
+    <script type="module" src="https://cdn.jsdelivr.net/npm/beercss@4.0.2/dist/cdn/beer.min.js"></script>
+    <script type="module"
+        src="https://cdn.jsdelivr.net/npm/material-dynamic-colors@1.1.4/dist/cdn/material-dynamic-colors.min.js"></script>
+    <script type="module"
+        src="https://cdn.jsdelivr.net/gh/starfederation/datastar@1.0.0-RC.7/bundles/datastar.js"></script>
+
+    <script>
+        const togglePanel = () => {
+            // 1. Get current state and flip it
+            const currentState = JSON.parse(localStorage.getItem('panel-expanded')) ?? false;
+            const newState = !currentState;
+
+            // 2. Save to localStorage
+            localStorage.setItem('panel-expanded', JSON.stringify(newState));
+
+            // 3. Update the UI
+            const panel = document.querySelector('#panel');
+            panel.classList.toggle('max', newState);
+        };
+    </script>
+</head>
+
 <body class="light">
-    <nav>
-        <button class="circle transparent">
-            <i>menu</i>
-        </button>
-        <h5 class="max">Radiology Engine</h5>
-        <button class="circle transparent">
-            <i>account_circle</i>
-        </button>
+    <header class="m l">
+        <nav>
+            <button class="s circle transparent">
+                <i>menu</i>
+            </button>
+            <h6 class="max center-align">Radiologist Assignment</h6>
+            <button class="circle transparent">
+                <img class="responsive" src="/favicon.png">
+            </button>
+        </nav>
+    </header>
+
+    <nav class="m l left" id="panel">
+        <header>
+            <nav>
+                <button class="circle transparent" onclick="togglePanel()">
+                    <i>menu</i>
+                </button>
+            </nav>
+        </header>
+        <a href="/">
+            <i>dashboard</i>
+            <span>Dashboard</span>
+        </a>
+        <a href="/rules">
+            <i>rule</i>
+            <span>Rules</span>
+        </a>
+        <a href="/shifts">
+            <i>schedule</i>
+            <span>Shifts</span>
+        </a>
+        <a href="/calendar">
+            <i>calendar_month</i>
+            <span>Calendar</span>
+        </a>
+        <a href="/procedures">
+            <i>healing</i>
+            <span>Procedures</span>
+        </a>
     </nav>
 
-    <div class="row">
-        <div class="col s12 m3 l2">
-            <nav class="drawer left">
-                <header>
-                    <nav>
-                        <h6 class="max">Menu</h6>
-                    </nav>
-                </header>
-                <a href="/">
-                    <i>dashboard</i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="/rules">
-                    <i>rule</i>
-                    <span>Rules</span>
-                </a>
-                <a href="/shifts">
-                    <i>schedule</i>
-                    <span>Shifts</span>
-                </a>
-                <a href="/calendar">
-                    <i>calendar_month</i>
-                    <span>Calendar</span>
-                </a>
-                <a href="/procedures">
-                    <i>healing</i>
-                    <span>Procedures</span>
-                </a>
-            </nav>
-        </div>
 
-        <main class="col s12 m9 l10 responsive">
-            {{ template "content" . }}
-        </main>
+    <nav class="s bottom">
+        <a href="/">
+            <i>dashboard</i>
+            <span>Dashboard</span>
+        </a>
+        <a href="/rules">
+            <i>rule</i>
+            <span>Rules</span>
+        </a>
+        <a href="/shifts">
+            <i>schedule</i>
+            <span>Shifts</span>
+        </a>
+        <a href="/calendar">
+            <i>calendar_month</i>
+            <span>Calendar</span>
+        </a>
+        <a href="/procedures">
+            <i>healing</i>
+            <span>Procedures</span>
+        </a>
+    </nav>
+
+    <main class="responsive">
+        {{ template "content" . }}
+    </main>
     </div>
 </body>
+
 </html>
+
+<script>
+    //Retrieve the panel state from local storage and apply it to the panel
+    const currentState = JSON.parse(localStorage.getItem('panel-expanded')) ?? false;
+    const panel = document.querySelector('#panel');
+    panel.classList.toggle('max', currentState);
+</script>
 {{ end }}
