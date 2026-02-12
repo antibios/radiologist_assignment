@@ -216,6 +216,9 @@ type ShiftsData struct {
 	Shifts       []*models.Shift
 	Roster       map[int64][]*models.RosterEntry
 	Radiologists []*models.Radiologist
+	Sites        []models.Site
+	Modalities   []models.Modality
+	Credentials  []models.Credential
 }
 
 type CalendarData struct {
@@ -240,6 +243,8 @@ type CalendarShift struct {
 
 type ProceduresData struct {
 	Procedures []*models.Procedure
+	Modalities []models.Modality
+	BodyParts  []models.BodyPart
 }
 
 func main() {
@@ -457,6 +462,7 @@ func handleDeleteRule(w http.ResponseWriter, r *http.Request) {
 func handleShifts(w http.ResponseWriter, r *http.Request) {
 	shiftsMu.RLock()
 	rosterMu.RLock()
+	configMu.RLock()
 
 	// Map roster to shift IDs
 	rosterMap := make(map[int64][]*models.RosterEntry)
@@ -468,8 +474,12 @@ func handleShifts(w http.ResponseWriter, r *http.Request) {
 		Shifts:       shifts,
 		Roster:       rosterMap,
 		Radiologists: radiologists,
+		Sites:        refData.Sites,
+		Modalities:   refData.Modalities,
+		Credentials:  refData.Credentials,
 	}
 
+	configMu.RUnlock()
 	rosterMu.RUnlock()
 	shiftsMu.RUnlock()
 
@@ -485,20 +495,21 @@ func handleAPIShifts(w http.ResponseWriter, r *http.Request) {
 
 		name := r.FormValue("name")
 		workType := r.FormValue("work_type")
-		site := r.FormValue("site")
 		priorityStr := r.FormValue("priority")
-		creds := r.FormValue("credentials")
-
 		priority, _ := strconv.Atoi(priorityStr)
+
+		// Capture multi-value fields
+		sites := r.Form["sites"]
+		creds := r.Form["credentials"]
 
 		shiftsMu.Lock()
 		newShift := &models.Shift{
 			ID:                  int64(len(shifts) + 1),
 			Name:                name,
 			WorkType:            workType,
-			Sites:               []string{site},
+			Sites:               sites,
 			PriorityLevel:       priority,
-			RequiredCredentials: strings.Split(creds, ","),
+			RequiredCredentials: creds,
 			CreatedAt:           time.Now(),
 		}
 		shifts = append(shifts, newShift)
@@ -593,9 +604,13 @@ func handleAssignRadiologist(w http.ResponseWriter, r *http.Request) {
 
 func handleProcedures(w http.ResponseWriter, r *http.Request) {
 	proceduresMu.RLock()
+	configMu.RLock()
 	data := ProceduresData{
 		Procedures: procedures,
+		Modalities: refData.Modalities,
+		BodyParts:  refData.BodyParts,
 	}
+	configMu.RUnlock()
 	proceduresMu.RUnlock()
 
 	render(w, "procedures", data, "ui/templates/procedures.html")
