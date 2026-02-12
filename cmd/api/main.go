@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"radiology-assignment/internal/assignment"
 	"radiology-assignment/internal/models"
 	"strconv"
@@ -291,6 +292,7 @@ func main() {
 
 	http.HandleFunc("/calendar", handleCalendar)
 
+	http.HandleFunc("/api/validate-criteria", handleValidateCriteria)
 	http.HandleFunc("/api/simulate", handleSimulateAssignment)
 
 	log.Printf("API/UI Server started on :%s", port)
@@ -386,6 +388,44 @@ func handleRules(w http.ResponseWriter, r *http.Request) {
 
 func extractFilters(r *http.Request) map[string]interface{} {
 	filters := make(map[string]interface{})
+
+	// Check for new JSON format
+	jsonStr := r.FormValue("criteria_json")
+	if jsonStr != "" {
+		var criteria []struct {
+			Attribute string `json:"attribute"`
+			Match     string `json:"match"`
+			Value     string `json:"value"`
+		}
+		if err := json.Unmarshal([]byte(jsonStr), &criteria); err == nil {
+			for _, c := range criteria {
+				var condition interface{}
+				if c.Match == "EQ" {
+					condition = c.Value
+				} else {
+					condition = map[string]string{
+						"op":  c.Match,
+						"val": c.Value,
+					}
+				}
+
+				if existing, ok := filters[c.Attribute]; ok {
+					// Convert to list if not already
+					var list []interface{}
+					if l, isList := existing.([]interface{}); isList {
+						list = l
+					} else {
+						list = []interface{}{existing}
+					}
+					list = append(list, condition)
+					filters[c.Attribute] = list
+				} else {
+					filters[c.Attribute] = condition
+				}
+			}
+			return filters
+		}
+	}
 
 	if val := r.FormValue("filter_urgency"); val != "" {
 		filters["urgency"] = val
@@ -1084,6 +1124,58 @@ func handleCalendar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render(w, "calendar", data, "ui/templates/calendar.html")
+}
+
+func handleValidateCriteria(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	attribute := r.FormValue("attribute")
+	match := r.FormValue("match")
+	value := r.FormValue("value")
+
+	valid := true
+	message := "OK"
+
+	// Basic validation logic
+	switch attribute {
+	case "patient_age", "patient_age_min", "patient_age_max":
+		if match != "REGEX" {
+			if _, err := strconv.Atoi(value); err != nil {
+				valid = false
+				message = "Age must be a number"
+			}
+		}
+	case "exam_time_range":
+		// validate HH:MM-HH:MM
+		parts := strings.Split(value, "-")
+		if len(parts) != 2 {
+			valid = false
+			message = "Format must be HH:MM-HH:MM"
+		} else {
+			_, err1 := time.Parse("15:04", parts[0])
+			_, err2 := time.Parse("15:04", parts[1])
+			if err1 != nil || err2 != nil {
+				valid = false
+				message = "Invalid time format"
+			}
+		}
+	}
+
+	if match == "REGEX" {
+		if _, err := regexp.Compile(value); err != nil {
+			valid = false
+			message = "Invalid regex"
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"valid":   valid,
+		"message": message,
+	})
 }
 
 func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {

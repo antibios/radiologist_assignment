@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"radiology-assignment/internal/models"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -217,6 +218,19 @@ func (e *Engine) ruleMatches(rule *models.AssignmentRule, study *models.Study) b
 	// Matcher based on ConditionFilters map
 	filters := rule.ConditionFilters
 
+	// Helper to check a single condition against a value
+	matches := func(studyValue interface{}, condition interface{}) bool {
+		if list, ok := condition.([]interface{}); ok {
+			for _, item := range list {
+				if !e.matchSingleCondition(studyValue, item) {
+					return false
+				}
+			}
+			return true
+		}
+		return e.matchSingleCondition(studyValue, condition)
+	}
+
 	// 1. Min Age (Wait time)
 	if val, ok := filters["min_age_minutes"]; ok {
 		var minAge float64
@@ -237,40 +251,47 @@ func (e *Engine) ruleMatches(rule *models.AssignmentRule, study *models.Study) b
 
 	// 2. Urgency
 	if val, ok := filters["urgency"]; ok {
-		if study.Urgency != val.(string) {
+		if !matches(study.Urgency, val) {
 			return false
 		}
 	}
 
 	// 3. Procedure Code
 	if val, ok := filters["procedure_code"]; ok {
-		if study.ProcedureCode != val.(string) {
+		if !matches(study.ProcedureCode, val) {
 			return false
 		}
 	}
 
 	// 4. Body Part
 	if val, ok := filters["body_part"]; ok {
-		if study.BodyPart != val.(string) {
+		if !matches(study.BodyPart, val) {
 			return false
 		}
 	}
 
 	// 5. Ordering Physician
 	if val, ok := filters["ordering_physician"]; ok {
-		if study.OrderingPhysician != val.(string) {
+		if !matches(study.OrderingPhysician, val) {
 			return false
 		}
 	}
 
 	// 6. Site
 	if val, ok := filters["site"]; ok {
-		if study.Site != val.(string) {
+		if !matches(study.Site, val) {
 			return false
 		}
 	}
 
-	// 7. Patient Age Range
+	// 7. Patient Age (Generic)
+	if val, ok := filters["patient_age"]; ok {
+		if !matches(float64(study.PatientAge), val) {
+			return false
+		}
+	}
+
+	// Legacy Patient Age Range
 	if val, ok := filters["patient_age_min"]; ok {
 		min := toFloat(val)
 		if float64(study.PatientAge) < min {
@@ -286,8 +307,10 @@ func (e *Engine) ruleMatches(rule *models.AssignmentRule, study *models.Study) b
 
 	// 8. Exam Time Range (HH:MM-HH:MM)
 	if val, ok := filters["exam_time_range"]; ok {
-		if !e.matchesTimeRange(study.GetExamTime(), val.(string)) {
-			return false
+		if s, ok := val.(string); ok {
+			if !e.matchesTimeRange(study.GetExamTime(), s) {
+				return false
+			}
 		}
 	}
 
@@ -300,33 +323,113 @@ func (e *Engine) ruleMatches(rule *models.AssignmentRule, study *models.Study) b
 
 	// 10. Procedure Description
 	if val, ok := filters["procedure_description"]; ok {
-		if study.ProcedureDescription != val.(string) {
+		if !matches(study.ProcedureDescription, val) {
 			return false
 		}
 	}
 
 	// 11. Prior Location
 	if val, ok := filters["prior_location"]; ok {
-		if study.PriorLocation != val.(string) {
+		if !matches(study.PriorLocation, val) {
 			return false
 		}
 	}
 
 	// 12. Technician
 	if val, ok := filters["technician"]; ok {
-		if study.Technician != val.(string) {
+		if !matches(study.Technician, val) {
 			return false
 		}
 	}
 
 	// 13. Transcriptionist
 	if val, ok := filters["transcriptionist"]; ok {
-		if study.Transcriptionist != val.(string) {
+		if !matches(study.Transcriptionist, val) {
 			return false
 		}
 	}
 
 	return true
+}
+
+func (e *Engine) matchSingleCondition(actual interface{}, condition interface{}) bool {
+	var op string = "EQ"
+	var targetVal interface{} = condition
+
+	if m, ok := condition.(map[string]interface{}); ok {
+		if v, exists := m["val"]; exists {
+			targetVal = v
+		}
+		if o, exists := m["op"]; exists {
+			op = o.(string)
+		}
+	} else if m, ok := condition.(map[string]string); ok {
+		if v, exists := m["val"]; exists {
+			targetVal = v
+		}
+		if o, exists := m["op"]; exists {
+			op = o
+		}
+	}
+
+	return compare(actual, op, targetVal)
+}
+
+func compare(actual interface{}, op string, target interface{}) bool {
+	actNum, actIsNum := toFloatAny(actual)
+	tgtNum, tgtIsNum := toFloatAny(target)
+
+	// String comparison
+	if !actIsNum || !tgtIsNum {
+		actStr := fmt.Sprintf("%v", actual)
+		tgtStr := fmt.Sprintf("%v", target)
+
+		switch op {
+		case "EQ":
+			return actStr == tgtStr
+		case "NEQ":
+			return actStr != tgtStr
+		case "REGEX":
+			matched, _ := regexp.MatchString(tgtStr, actStr)
+			return matched
+		default:
+			return false
+		}
+	}
+
+	// Numeric comparison
+	switch op {
+	case "EQ":
+		return actNum == tgtNum
+	case "NEQ":
+		return actNum != tgtNum
+	case "GT":
+		return actNum > tgtNum
+	case "LT":
+		return actNum < tgtNum
+	case "GTE":
+		return actNum >= tgtNum
+	case "LTE":
+		return actNum <= tgtNum
+	}
+
+	return false
+}
+
+func toFloatAny(val interface{}) (float64, bool) {
+	switch v := val.(type) {
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case float64:
+		return v, true
+	case string:
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f, true
+		}
+	}
+	return 0, false
 }
 
 func toFloat(val interface{}) float64 {

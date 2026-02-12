@@ -33,6 +33,8 @@ func TestRulesE2E(t *testing.T) {
 			handleEditRule(w, r)
 		case "/api/rules/delete":
 			handleDeleteRule(w, r)
+		case "/api/validate-criteria":
+			handleValidateCriteria(w, r)
 		default:
 			if strings.HasPrefix(r.URL.Path, "/static/") {
 				// Adjust path for test execution from cmd/api
@@ -71,28 +73,30 @@ func TestRulesE2E(t *testing.T) {
 			chromedp.Sleep(500*time.Millisecond),
 
 			// Fill Name
-			chromedp.SendKeys(`#add-rule-modal input[name="name"]`, ruleName, chromedp.ByQuery),
+			chromedp.Evaluate(`document.querySelector('#add-rule-modal input[name="name"]').value = '`+ruleName+`'`, nil),
 
 			// Select Action Type to ASSIGN_TO_WORKLIST
-			chromedp.SetValue(`#add-rule-modal select[name="action"]`, "ASSIGN_TO_WORKLIST", chromedp.ByQuery),
+			chromedp.Evaluate(`document.querySelector('#add-rule-modal select[name="action"]').value = 'ASSIGN_TO_WORKLIST'`, nil),
 
 			// Set Target
-			chromedp.SendKeys(`#add-rule-modal input[name="target"]`, "UrgentQueue", chromedp.ByQuery),
+			chromedp.Evaluate(`document.querySelector('#add-rule-modal input[name="target"]').value = 'UrgentQueue'`, nil),
 
 			// Add Criteria: Urgency
-			chromedp.SetValue(`#add-criteria-select-add`, "urgency", chromedp.ByQuery),
-			chromedp.Click(`#add-rule-modal button[onclick="addCriteria('add')"]`, chromedp.ByQuery),
-			chromedp.WaitVisible(`#criteria-container-add input[name="filter_urgency"]`, chromedp.ByQuery),
-			chromedp.SendKeys(`#criteria-container-add input[name="filter_urgency"]`, "STAT", chromedp.ByQuery),
+			chromedp.Evaluate(`document.getElementById('add-attr-add').value = 'urgency'`, nil),
+			chromedp.Evaluate(`document.getElementById('add-match-add').value = 'EQ'`, nil),
+			chromedp.Evaluate(`document.getElementById('add-val-add').value = 'STAT'`, nil),
+			chromedp.Evaluate(`addCriteria('add')`, nil),
+			chromedp.Sleep(500*time.Millisecond), // Wait for validation and add
 
 			// Add Criteria: Site
-			chromedp.SetValue(`#add-criteria-select-add`, "site", chromedp.ByQuery),
-			chromedp.Click(`#add-rule-modal button[onclick="addCriteria('add')"]`, chromedp.ByQuery),
-			chromedp.WaitVisible(`#criteria-container-add input[name="filter_site"]`, chromedp.ByQuery),
-			chromedp.SendKeys(`#criteria-container-add input[name="filter_site"]`, "SiteA", chromedp.ByQuery),
+			chromedp.Evaluate(`document.getElementById('add-attr-add').value = 'site'`, nil),
+			chromedp.Evaluate(`document.getElementById('add-match-add').value = 'EQ'`, nil),
+			chromedp.Evaluate(`document.getElementById('add-val-add').value = 'SiteA'`, nil),
+			chromedp.Evaluate(`addCriteria('add')`, nil),
+			chromedp.Sleep(500*time.Millisecond),
 
 			// Save
-			chromedp.Click(`#add-rule-modal button[type="submit"]`, chromedp.ByQuery),
+			chromedp.Evaluate(`document.querySelector('#add-rule-modal form').submit()`, nil),
 
 			// Verify in List
 			chromedp.WaitVisible(`//td[text()="`+ruleName+`"]`, chromedp.BySearch),

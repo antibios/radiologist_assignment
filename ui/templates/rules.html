@@ -5,7 +5,7 @@
             <h4>Assignment Rules</h4>
         </div>
         <div class="col min">
-            <button class="primary" onclick="ui('#add-rule-modal')">
+            <button class="primary" onclick="ui('#add-rule-modal'); resetAddModal();">
                 <i>add</i>
                 <span>Add Rule</span>
             </button>
@@ -53,48 +53,91 @@
 </div>
 
 <!-- Add Modal -->
-<dialog id="add-rule-modal">
+<dialog id="add-rule-modal" class="large">
     <h5>Add New Rule</h5>
-    <form action="/api/rules" method="POST">
-        <div class="field label border">
-            <input type="text" name="name" required>
-            <label>Rule Name</label>
-        </div>
-        <div class="field label border">
-            <select name="action">
-                <option value="FILTER_COMPETENCY">Filter Competency</option>
-                <option value="ESCALATE">Escalate</option>
-                <option value="ASSIGN_TO_SHIFT">Assign to Shift</option>
-                <option value="ASSIGN_TO_RADIOLOGIST">Assign to Radiologist</option>
-                <option value="ASSIGN_TO_WORKLIST">Assign to Worklist</option>
-            </select>
-            <label>Action Type</label>
-        </div>
-        <div class="field label border">
-            <input type="text" name="target">
-            <label>Action Target (ID, Shift ID, Worklist)</label>
+    <form action="/api/rules" method="POST" onsubmit="prepareSubmission('add')">
+        <div class="grid">
+            <div class="s12 m4">
+                <div class="field label border">
+                    <input type="text" name="name" required>
+                    <label>Rule Name</label>
+                </div>
+            </div>
+            <div class="s12 m4">
+                <div class="field label border">
+                    <select name="action">
+                        <option value="FILTER_COMPETENCY">Filter Competency</option>
+                        <option value="ESCALATE">Escalate</option>
+                        <option value="ASSIGN_TO_SHIFT">Assign to Shift</option>
+                        <option value="ASSIGN_TO_RADIOLOGIST">Assign to Radiologist</option>
+                        <option value="ASSIGN_TO_WORKLIST">Assign to Worklist</option>
+                    </select>
+                    <label>Action Type</label>
+                </div>
+            </div>
+            <div class="s12 m4">
+                <div class="field label border">
+                    <input type="text" name="target">
+                    <label>Action Target (ID, Shift ID, Worklist)</label>
+                </div>
+            </div>
         </div>
 
         <h6>Criteria</h6>
-        <div class="field label border suffix">
-            <select id="add-criteria-select-add">
-                <option value="" disabled selected>Select Criteria to Add</option>
-                <option value="urgency">Exam Priority (Urgency)</option>
-                <option value="site">Exam Site Code</option>
-                <option value="ordering_physician">Referrer Details</option>
-                <option value="patient_age_min">Patient Age (Min)</option>
-                <option value="patient_age_max">Patient Age (Max)</option>
-                <option value="procedure_code">Procedure Code</option>
-                <option value="procedure_description">Procedure Description</option>
-                <option value="prior_location">Prior Location</option>
-                <option value="days_of_week">Days of Week (comma-sep)</option>
-                <option value="technician">Technician</option>
-                <option value="transcriptionist">Transcriptionist</option>
-            </select>
-            <label>Add Condition</label>
-            <button type="button" onclick="addCriteria('add')">Add</button>
+        <div class="grid no-space">
+            <div class="s12 m4">
+                <div class="field label border">
+                    <select id="add-attr-add">
+                        <option value="" disabled selected>Select Attribute</option>
+                        <option value="urgency">Exam Priority (Urgency)</option>
+                        <option value="site">Exam Site Code</option>
+                        <option value="ordering_physician">Referrer Details</option>
+                        <option value="patient_age">Patient Age</option>
+                        <option value="procedure_code">Procedure Code</option>
+                        <option value="procedure_description">Procedure Description</option>
+                        <option value="prior_location">Prior Location</option>
+                        <option value="days_of_week">Days of Week</option>
+                        <option value="technician">Technician</option>
+                        <option value="transcriptionist">Transcriptionist</option>
+                        <option value="exam_time_range">Exam Time Range</option>
+                    </select>
+                    <label>Attribute</label>
+                </div>
+            </div>
+            <div class="s12 m3">
+                <div class="field label border">
+                    <select id="add-match-add">
+                        <option value="EQ">Equals</option>
+                        <option value="NEQ">Not Equals</option>
+                        <option value="REGEX">REGEX</option>
+                        <option value="GT">Greater Than</option>
+                        <option value="LT">Less Than</option>
+                        <option value="GTE">Greater Than or Equal</option>
+                        <option value="LTE">Less Than or Equal</option>
+                    </select>
+                    <label>Match</label>
+                </div>
+            </div>
+            <div class="s12 m3">
+                <div class="field label border">
+                    <input type="text" id="add-val-add">
+                    <label>Value</label>
+                </div>
+            </div>
+            <div class="s6 m1 middle-align center-align">
+                <i id="add-valid-icon-add" class="grey-text">check_circle</i>
+            </div>
+            <div class="s6 m1 middle-align right-align">
+                <button type="button" class="circle small primary" onclick="addCriteria('add')">
+                    <i>add</i>
+                </button>
+            </div>
         </div>
-        <div id="criteria-container-add"></div>
+
+        <div id="criteria-list-add" class="padding">
+            <!-- Added criteria will appear here -->
+        </div>
+        <input type="hidden" name="criteria_json" id="criteria-json-add">
 
         <nav class="right-align">
             <button type="button" class="transparent link" onclick="ui('#add-rule-modal')">Cancel</button>
@@ -104,49 +147,92 @@
 </dialog>
 
 <!-- Edit Modal -->
-<dialog id="edit-rule-modal">
+<dialog id="edit-rule-modal" class="large">
     <h5>Edit Rule</h5>
-    <form action="/api/rules/edit" method="POST">
+    <form action="/api/rules/edit" method="POST" onsubmit="prepareSubmission('edit')">
         <input type="hidden" name="id" id="edit-id">
-        <div class="field label border">
-            <input type="text" name="name" id="edit-name" required>
-            <label>Rule Name</label>
-        </div>
-        <div class="field label border">
-            <select name="action" id="edit-action">
-                <option value="FILTER_COMPETENCY">Filter Competency</option>
-                <option value="ESCALATE">Escalate</option>
-                <option value="ASSIGN_TO_SHIFT">Assign to Shift</option>
-                <option value="ASSIGN_TO_RADIOLOGIST">Assign to Radiologist</option>
-                <option value="ASSIGN_TO_WORKLIST">Assign to Worklist</option>
-            </select>
-            <label>Action Type</label>
-        </div>
-        <div class="field label border">
-            <input type="text" name="target" id="edit-target">
-            <label>Action Target (ID, Shift ID, Worklist)</label>
+        <div class="grid">
+            <div class="s12 m4">
+                <div class="field label border">
+                    <input type="text" name="name" id="edit-name" required>
+                    <label>Rule Name</label>
+                </div>
+            </div>
+            <div class="s12 m4">
+                <div class="field label border">
+                    <select name="action" id="edit-action">
+                        <option value="FILTER_COMPETENCY">Filter Competency</option>
+                        <option value="ESCALATE">Escalate</option>
+                        <option value="ASSIGN_TO_SHIFT">Assign to Shift</option>
+                        <option value="ASSIGN_TO_RADIOLOGIST">Assign to Radiologist</option>
+                        <option value="ASSIGN_TO_WORKLIST">Assign to Worklist</option>
+                    </select>
+                    <label>Action Type</label>
+                </div>
+            </div>
+            <div class="s12 m4">
+                <div class="field label border">
+                    <input type="text" name="target" id="edit-target">
+                    <label>Action Target (ID, Shift ID, Worklist)</label>
+                </div>
+            </div>
         </div>
 
         <h6>Criteria</h6>
-        <div class="field label border suffix">
-            <select id="add-criteria-select-edit">
-                <option value="" disabled selected>Select Criteria to Add</option>
-                <option value="urgency">Exam Priority (Urgency)</option>
-                <option value="site">Exam Site Code</option>
-                <option value="ordering_physician">Referrer Details</option>
-                <option value="patient_age_min">Patient Age (Min)</option>
-                <option value="patient_age_max">Patient Age (Max)</option>
-                <option value="procedure_code">Procedure Code</option>
-                <option value="procedure_description">Procedure Description</option>
-                <option value="prior_location">Prior Location</option>
-                <option value="days_of_week">Days of Week (comma-sep)</option>
-                <option value="technician">Technician</option>
-                <option value="transcriptionist">Transcriptionist</option>
-            </select>
-            <label>Add Condition</label>
-            <button type="button" onclick="addCriteria('edit')">Add</button>
+        <div class="grid no-space">
+            <div class="s12 m4">
+                <div class="field label border">
+                    <select id="add-attr-edit">
+                        <option value="" disabled selected>Select Attribute</option>
+                        <option value="urgency">Exam Priority (Urgency)</option>
+                        <option value="site">Exam Site Code</option>
+                        <option value="ordering_physician">Referrer Details</option>
+                        <option value="patient_age">Patient Age</option>
+                        <option value="procedure_code">Procedure Code</option>
+                        <option value="procedure_description">Procedure Description</option>
+                        <option value="prior_location">Prior Location</option>
+                        <option value="days_of_week">Days of Week</option>
+                        <option value="technician">Technician</option>
+                        <option value="transcriptionist">Transcriptionist</option>
+                        <option value="exam_time_range">Exam Time Range</option>
+                    </select>
+                    <label>Attribute</label>
+                </div>
+            </div>
+            <div class="s12 m3">
+                <div class="field label border">
+                    <select id="add-match-edit">
+                        <option value="EQ">Equals</option>
+                        <option value="NEQ">Not Equals</option>
+                        <option value="REGEX">REGEX</option>
+                        <option value="GT">Greater Than</option>
+                        <option value="LT">Less Than</option>
+                        <option value="GTE">Greater Than or Equal</option>
+                        <option value="LTE">Less Than or Equal</option>
+                    </select>
+                    <label>Match</label>
+                </div>
+            </div>
+            <div class="s12 m3">
+                <div class="field label border">
+                    <input type="text" id="add-val-edit">
+                    <label>Value</label>
+                </div>
+            </div>
+            <div class="s6 m1 middle-align center-align">
+                <i id="add-valid-icon-edit" class="grey-text">check_circle</i>
+            </div>
+            <div class="s6 m1 middle-align right-align">
+                <button type="button" class="circle small primary" onclick="addCriteria('edit')">
+                    <i>add</i>
+                </button>
+            </div>
         </div>
-        <div id="criteria-container-edit"></div>
+
+        <div id="criteria-list-edit" class="padding">
+            <!-- Added criteria will appear here -->
+        </div>
+        <input type="hidden" name="criteria_json" id="criteria-json-edit">
 
         <nav class="right-align">
             <button type="button" class="transparent link" onclick="ui('#edit-rule-modal')">Cancel</button>
@@ -156,45 +242,149 @@
 </dialog>
 
 <script>
+    // State management for criteria list
+    const criteriaState = {
+        add: [],
+        edit: []
+    };
+
     const criteriaMap = {
         'urgency': 'Exam Priority (Urgency)',
         'site': 'Exam Site Code',
         'ordering_physician': 'Referrer Details',
-        'patient_age_min': 'Patient Age (Min)',
-        'patient_age_max': 'Patient Age (Max)',
+        'patient_age': 'Patient Age',
+        'patient_age_min': 'Patient Age (Min)', // Legacy
+        'patient_age_max': 'Patient Age (Max)', // Legacy
         'procedure_code': 'Procedure Code',
         'procedure_description': 'Procedure Description',
         'prior_location': 'Prior Location',
         'days_of_week': 'Days of Week',
         'technician': 'Technician',
-        'transcriptionist': 'Transcriptionist'
+        'transcriptionist': 'Transcriptionist',
+        'exam_time_range': 'Exam Time Range'
     };
 
-    function addCriteriaInput(containerId, key, value) {
-        const container = document.getElementById(containerId);
-        const labelText = criteriaMap[key] || key;
-        const inputName = 'filter_' + key;
-
-        const div = document.createElement('div');
-        div.className = 'field label border suffix';
-        div.innerHTML = `
-            <input type="text" name="${inputName}" value="${value}">
-            <label>${labelText}</label>
-            <a class="transparent circle" href="javascript:void(0)" onclick="this.parentElement.remove()"><i>close</i></a>
-        `;
-        container.appendChild(div);
-        ui();
+    function resetAddModal() {
+        criteriaState.add = [];
+        renderCriteriaList('add');
+        document.querySelector('#add-rule-modal form').reset();
     }
 
     function addCriteria(mode) {
-        const selectId = 'add-criteria-select-' + mode;
-        const containerId = 'criteria-container-' + mode;
-        const select = document.getElementById(selectId);
-        const key = select.value;
-        if (!key) return;
+        const attrSelect = document.getElementById('add-attr-' + mode);
+        const matchSelect = document.getElementById('add-match-' + mode);
+        const valInput = document.getElementById('add-val-' + mode);
 
-        addCriteriaInput(containerId, key, '');
-        select.value = "";
+        const attr = attrSelect.value;
+        const match = matchSelect.value;
+        const val = valInput.value;
+
+        if (!attr || !val) {
+            ui('#toast-error-fields'); // Assuming a toast exists or just ignore
+            alert("Attribute and Value are required");
+            return;
+        }
+
+        // Validate via Server
+        validateCriteria(attr, match, val).then(isValid => {
+             const iconId = 'add-valid-icon-' + mode;
+             const icon = document.getElementById(iconId);
+
+             if (isValid) {
+                 icon.className = "green-text";
+                 icon.innerText = "check_circle";
+
+                 // Add to list
+                 criteriaState[mode].push({ attribute: attr, match: match, value: val });
+                 renderCriteriaList(mode);
+
+                 // Clear inputs
+                 attrSelect.value = "";
+                 valInput.value = "";
+                 matchSelect.value = "EQ";
+
+                 // Reset icon after short delay
+                 setTimeout(() => {
+                     icon.className = "grey-text";
+                 }, 2000);
+
+             } else {
+                 icon.className = "red-text";
+                 icon.innerText = "cancel";
+                 alert("Validation Failed: Invalid value for attribute");
+             }
+        });
+    }
+
+    async function validateCriteria(attribute, match, value) {
+        try {
+            const formData = new FormData();
+            formData.append('attribute', attribute);
+            formData.append('match', match);
+            formData.append('value', value);
+
+            const response = await fetch('/api/validate-criteria', {
+                method: 'POST',
+                body: new URLSearchParams(formData)
+            });
+            const data = await response.json();
+            return data.valid;
+        } catch (e) {
+            console.error("Validation error", e);
+            return false;
+        }
+    }
+
+    function removeCriteria(mode, index) {
+        criteriaState[mode].splice(index, 1);
+        renderCriteriaList(mode);
+    }
+
+    function renderCriteriaList(mode) {
+        const container = document.getElementById('criteria-list-' + mode);
+        container.innerHTML = '';
+
+        if (criteriaState[mode].length === 0) {
+            container.innerHTML = '<div class="center-align grey-text">No criteria added</div>';
+            return;
+        }
+
+        const table = document.createElement('table');
+        table.className = "stripes";
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Attribute</th>
+                    <th>Match</th>
+                    <th>Value</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+
+        criteriaState[mode].forEach((item, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${criteriaMap[item.attribute] || item.attribute}</td>
+                <td>${item.match}</td>
+                <td>${item.value}</td>
+                <td>
+                    <button type="button" class="circle small transparent error-text" onclick="removeCriteria('${mode}', ${index})">
+                        <i>delete</i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        container.appendChild(table);
+    }
+
+    function prepareSubmission(mode) {
+        const jsonInput = document.getElementById('criteria-json-' + mode);
+        jsonInput.value = JSON.stringify(criteriaState[mode]);
     }
 
     function openEditModal(id, name, action, target, filters) {
@@ -203,23 +393,44 @@
         document.getElementById('edit-action').value = action;
         document.getElementById('edit-target').value = target || '';
 
-        const container = document.getElementById('criteria-container-edit');
-        container.innerHTML = '';
+        // Populate criteria list from filters
+        criteriaState.edit = [];
 
         if (filters) {
             for (const [key, value] of Object.entries(filters)) {
-                let valStr = value;
-                if (Array.isArray(value)) {
-                    valStr = value.join(', ');
+                let attr = key;
+                let match = "EQ";
+                let val = value;
+
+                // Handle complex object
+                if (value && typeof value === 'object' && !Array.isArray(value) && value.op) {
+                    match = value.op;
+                    val = value.val;
+                } else if (Array.isArray(value)) {
+                    val = value.join(', ');
                 }
-                if (criteriaMap[key]) {
-                    addCriteriaInput('criteria-container-edit', key, valStr);
+
+                // Map legacy min/max to generic with operators if needed
+                // For now, keep them as is or map them to 'patient_age' with GT/LT?
+                // Let's keep specific keys if they match the dropdown, otherwise map them.
+                // Dropdown has 'patient_age'. 'patient_age_min' is not in dropdown but supported in map.
+                // If we encounter 'patient_age_min', we can display it as "Patient Age" with "GT"?
+                // Let's try to map best effort.
+
+                if (attr === 'patient_age_min') {
+                    attr = 'patient_age';
+                    match = 'GTE'; // or GT depending on logic
+                } else if (attr === 'patient_age_max') {
+                    attr = 'patient_age';
+                    match = 'LTE';
                 }
+
+                criteriaState.edit.push({ attribute: attr, match: match, value: val });
             }
         }
 
+        renderCriteriaList('edit');
         ui('#edit-rule-modal');
-        // Ensure open attribute is set for test visibility if ui() animation is slow or different
         document.getElementById('edit-rule-modal').setAttribute('open', '');
     }
 </script>
