@@ -11,97 +11,116 @@
         </div>
     </div>
 
-    <!-- Overview / Unfilled Shifts -->
-    <article class="border warning-container">
-        <h5>Unfilled Shifts Overview</h5>
-        <div class="row">
-            {{ range .UnfilledShifts }}
-            <div class="col s12 m6 l4">
-                <div class="chip error pointer" onclick='openRosterModal({{.ShiftID}}, "{{.ShiftName}}", "{{.Date.Format "2006-01-02"}}", {{json .AssignedRadiologistIDs}})'>
-                    <i>warning</i>
-                    <span>{{ .Date.Format "Jan 02" }}: {{ .ShiftName }}</span>
+    {{ if eq .View "month" }}
+        <!-- Month Header (Grid) -->
+        <div class="calendar-month-grid calendar-header margin-bottom">
+            <div class="center-align bold">Mon</div>
+            <div class="center-align bold">Tue</div>
+            <div class="center-align bold">Wed</div>
+            <div class="center-align bold">Thu</div>
+            <div class="center-align bold">Fri</div>
+            <div class="center-align bold">Sat</div>
+            <div class="center-align bold">Sun</div>
+        </div>
+
+        <div class="calendar-month-grid">
+            {{ range .Days }}
+            <!-- Link to Day View -->
+            <a href="?view=day&date={{.Date.Format "2006-01-02"}}" class="calendar-day-card border round padding hover">
+                <div class="row no-space">
+                    <div class="col max">
+                        <h6 class="no-margin">{{ .Date.Format "02" }}</h6>
+                    </div>
+                    <div class="col min">
+                         <span class="tiny-text">{{ .Date.Format "Mon" }}</span>
+                    </div>
                 </div>
-            </div>
-            {{ else }}
-            <div class="col s12">
-                <p>All shifts are covered for the current view!</p>
-            </div>
+
+                <div class="stats-container">
+                    <div class="row no-space">
+                        <div class="col max tiny-text">Scheduled:</div>
+                        <div class="col min bold">{{ .Stats.TotalShifts }}</div>
+                    </div>
+                    <div class="row no-space">
+                        <div class="col max tiny-text green-text">Filled:</div>
+                        <div class="col min bold green-text">{{ .Stats.FilledShifts }}</div>
+                    </div>
+                    <div class="row no-space">
+                        <div class="col max tiny-text red-text">Unfilled:</div>
+                        <div class="col min bold red-text">{{ .Stats.UnfilledShifts }}</div>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="row no-space">
+                        <div class="col max tiny-text">Radiologists:</div>
+                        <div class="col min bold">{{ .Stats.RosteredRadiologists }}</div>
+                    </div>
+                </div>
+            </a>
             {{ end }}
         </div>
-    </article>
-
-    <!-- Calendar Grid -->
-    <div class="grid-calendar">
-        {{ if eq .View "month" }}
-            <!-- Month Header -->
+    {{ else }}
+        <!-- Overview / Unfilled Shifts -->
+        <article class="border warning-container">
+            <h5>Unfilled Shifts Overview</h5>
             <div class="row">
-                <div class="col s1-7 center-align">Mon</div>
-                <div class="col s1-7 center-align">Tue</div>
-                <div class="col s1-7 center-align">Wed</div>
-                <div class="col s1-7 center-align">Thu</div>
-                <div class="col s1-7 center-align">Fri</div>
-                <div class="col s1-7 center-align">Sat</div>
-                <div class="col s1-7 center-align">Sun</div>
-            </div>
-            <div class="row">
-                {{ range .Days }}
-                <div class="col s1-7 border padding" style="min-height: 100px;">
-                    <h6 class="center-align">{{ .Date.Format "02" }}</h6>
-                    {{ range .Shifts }}
-                        <div class="chip small {{ if .Filled }}green{{ else }}red{{ end }}" style="width: 100%; justify-content: start; cursor: pointer;"
-                             onclick='openRosterModal({{.ShiftID}}, "{{.ShiftName}}", "{{.Date.Format "2006-01-02"}}", {{json .AssignedRadiologistIDs}})'>
-                            <span class="tiny-text truncate">{{ .ShiftName }}</span>
-                            {{ if .Filled }}<span class="badge white black-text circle right">{{len .AssignedRadiologistIDs}}</span>{{ end }}
-                        </div>
-                    {{ end }}
+                {{ range .UnfilledShifts }}
+                <div class="col s12 m6 l4">
+                    <div class="chip error pointer" onclick='openRosterModal({{.ShiftID}}, "{{.ShiftName}}", "{{.Date.Format "2006-01-02"}}", {{json .AssignedRadiologistIDs}})'>
+                        <i>warning</i>
+                        <span>{{ .Date.Format "Jan 02" }}: {{ .ShiftName }}</span>
+                    </div>
+                </div>
+                {{ else }}
+                <div class="col s12">
+                    <p>All shifts are covered for the current view!</p>
                 </div>
                 {{ end }}
             </div>
-        {{ else }}
-            <!-- Week/Day List View -->
-            <table class="stripes">
-                <thead>
+        </article>
+
+        <!-- Week/Day List View -->
+        <table class="stripes">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Shift</th>
+                    <th>Work Type</th>
+                    <th>Status</th>
+                    <th>Assigned To</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{ range .Days }}
+                    {{ $date := .Date }}
+                    {{ range .Shifts }}
                     <tr>
-                        <th>Date</th>
-                        <th>Shift</th>
-                        <th>Work Type</th>
-                        <th>Status</th>
-                        <th>Assigned To</th>
-                        <th>Action</th>
+                        <td>{{ $date.Format "Mon, Jan 02" }}</td>
+                        <td>{{ .ShiftName }}</td>
+                        <td>{{ .ShiftType }}</td>
+                        <td>
+                            {{ if .Filled }}
+                            <span class="badge green">Filled</span>
+                            {{ else }}
+                            <span class="badge red">Unfilled</span>
+                            {{ end }}
+                        </td>
+                        <td>
+                            {{ range .RadiologistNames }}
+                            <div class="chip small secondary">{{.}}</div>
+                            {{ end }}
+                        </td>
+                        <td>
+                            <button class="circle transparent small" onclick='openRosterModal({{.ShiftID}}, "{{.ShiftName}}", "{{.Date.Format "2006-01-02"}}", {{json .AssignedRadiologistIDs}})'>
+                                <i>edit</i>
+                            </button>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    {{ range .Days }}
-                        {{ $date := .Date }}
-                        {{ range .Shifts }}
-                        <tr>
-                            <td>{{ $date.Format "Mon, Jan 02" }}</td>
-                            <td>{{ .ShiftName }}</td>
-                            <td>{{ .ShiftType }}</td>
-                            <td>
-                                {{ if .Filled }}
-                                <span class="badge green">Filled</span>
-                                {{ else }}
-                                <span class="badge red">Unfilled</span>
-                                {{ end }}
-                            </td>
-                            <td>
-                                {{ range .RadiologistNames }}
-                                <div class="chip small secondary">{{.}}</div>
-                                {{ end }}
-                            </td>
-                            <td>
-                                <button class="circle transparent small" onclick='openRosterModal({{.ShiftID}}, "{{.ShiftName}}", "{{.Date.Format "2006-01-02"}}", {{json .AssignedRadiologistIDs}})'>
-                                    <i>edit</i>
-                                </button>
-                            </td>
-                        </tr>
-                        {{ end }}
                     {{ end }}
-                </tbody>
-            </table>
-        {{ end }}
-    </div>
+                {{ end }}
+            </tbody>
+        </table>
+    {{ end }}
 </div>
 
 <!-- Manage Roster Modal -->
@@ -168,9 +187,39 @@
 </script>
 
 <style>
-    .col.s1-7 { width: 14.28%; }
-    .tiny-text { font-size: 0.7rem; }
-    .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Custom Grid for Calendar Month View */
+    .calendar-month-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 10px;
+    }
+
+    .calendar-day-card {
+        display: block;
+        color: inherit;
+        text-decoration: none;
+        transition: background-color 0.2s;
+    }
+
+    .calendar-day-card:hover {
+        background-color: var(--surface-container-high);
+    }
+
+    .stats-container {
+        margin-top: 8px;
+    }
+
+    .tiny-text { font-size: 0.75rem; }
     .pointer { cursor: pointer; }
+
+    /* Responsive: Mobile - 1 column */
+    @media only screen and (max-width: 600px) {
+        .calendar-month-grid {
+            grid-template-columns: 1fr;
+        }
+        .calendar-header {
+            display: none;
+        }
+    }
 </style>
 {{ end }}

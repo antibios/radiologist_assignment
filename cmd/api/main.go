@@ -251,9 +251,17 @@ type CalendarData struct {
 	Radiologists   []*models.Radiologist
 }
 
+type DayStats struct {
+	TotalShifts          int
+	FilledShifts         int
+	UnfilledShifts       int
+	RosteredRadiologists int
+}
+
 type CalendarDay struct {
 	Date   time.Time
 	Shifts []CalendarShift
+	Stats  DayStats
 }
 
 type CalendarShift struct {
@@ -1090,50 +1098,84 @@ func handleCalendar(w http.ResponseWriter, r *http.Request) {
 	if view == "" {
 		view = "month"
 	}
+	dateStr := r.URL.Query().Get("date")
 
 	now := time.Now()
+	targetDate := now
+	if dateStr != "" {
+		if t, err := time.Parse("2006-01-02", dateStr); err == nil {
+			targetDate = t
+		}
+	}
+
 	var days []CalendarDay
 	var unfilled []CalendarShift
 
 	shiftsMu.RLock()
 	rosterMu.RLock()
 
+	// Pre-process roster into map: DateStr -> ShiftID -> Entries
+	rosterMap := make(map[string]map[int64][]*models.RosterEntry)
+	for _, entry := range roster {
+		dateKey := entry.StartDate.Format("2006-01-02")
+		if rosterMap[dateKey] == nil {
+			rosterMap[dateKey] = make(map[int64][]*models.RosterEntry)
+		}
+		rosterMap[dateKey][entry.ShiftID] = append(rosterMap[dateKey][entry.ShiftID], entry)
+	}
+
 	// Determine date range based on view
-	// Simply taking current day for 'day', current week for 'week', current month for 'month'
 	var start, end time.Time
 
 	switch view {
 	case "day":
-		start = now
-		end = now
+		start = targetDate
+		end = targetDate
 	case "week":
 		// Find start of week (Sunday)
-		weekday := int(now.Weekday())
-		start = now.AddDate(0, 0, -weekday)
+		weekday := int(targetDate.Weekday())
+		start = targetDate.AddDate(0, 0, -weekday)
 		end = start.AddDate(0, 0, 6)
 	case "month":
 		// Find start of month
-		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		start = time.Date(targetDate.Year(), targetDate.Month(), 1, 0, 0, 0, 0, targetDate.Location())
 		end = start.AddDate(0, 1, -1)
 	}
 
 	// Generate grid
 	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
 		day := CalendarDay{Date: d}
+		dateKey := d.Format("2006-01-02")
+		dailyRoster := rosterMap[dateKey]
 
-		for _, s := range shifts {
-			// Check if filled
-			filled := false
-			var radNames []string
-			var radIDs []string
+		// Month View: Only calculate stats
+		if view == "month" {
+			uniqueRads := make(map[string]bool)
+			for _, s := range shifts {
+				day.Stats.TotalShifts++
+				entries := dailyRoster[s.ID]
+				if len(entries) > 0 {
+					day.Stats.FilledShifts++
+					for _, entry := range entries {
+						uniqueRads[entry.RadiologistID] = true
+					}
+				} else {
+					day.Stats.UnfilledShifts++
+				}
+			}
+			day.Stats.RosteredRadiologists = len(uniqueRads)
+		} else {
+			// Day/Week View: Populate Shifts
+			for _, s := range shifts {
+				filled := false
+				var radNames []string
+				var radIDs []string
 
-			for _, entry := range roster {
-				if entry.ShiftID == s.ID {
-					// Check if date falls in roster entry range
-					if entry.StartDate.Year() == d.Year() && entry.StartDate.Month() == d.Month() && entry.StartDate.Day() == d.Day() {
-						filled = true
+				entries := dailyRoster[s.ID]
+				if len(entries) > 0 {
+					filled = true
+					for _, entry := range entries {
 						radIDs = append(radIDs, entry.RadiologistID)
-						// Lookup name
 						if rad, ok := radiologistsMap[entry.RadiologistID]; ok {
 							radNames = append(radNames, rad.FirstName+" "+rad.LastName)
 						} else {
@@ -1141,21 +1183,21 @@ func handleCalendar(w http.ResponseWriter, r *http.Request) {
 						}
 					}
 				}
-			}
 
-			cs := CalendarShift{
-				ShiftID:                s.ID,
-				ShiftName:              s.Name,
-				ShiftType:              s.WorkType,
-				Date:                   d,
-				Filled:                 filled,
-				RadiologistNames:       radNames,
-				AssignedRadiologistIDs: radIDs,
-			}
-			day.Shifts = append(day.Shifts, cs)
+				cs := CalendarShift{
+					ShiftID:                s.ID,
+					ShiftName:              s.Name,
+					ShiftType:              s.WorkType,
+					Date:                   d,
+					Filled:                 filled,
+					RadiologistNames:       radNames,
+					AssignedRadiologistIDs: radIDs,
+				}
+				day.Shifts = append(day.Shifts, cs)
 
-			if !filled {
-				unfilled = append(unfilled, cs)
+				if !filled {
+					unfilled = append(unfilled, cs)
+				}
 			}
 		}
 		days = append(days, day)
