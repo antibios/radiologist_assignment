@@ -12,6 +12,7 @@ type DataStore interface {
 	GetRadiologists(ctx context.Context, ids []string) ([]*models.Radiologist, error)
 	GetRadiologistCurrentWorkload(ctx context.Context, radiologistID string) (int64, error)
 	GetRadiologistWorkloads(ctx context.Context, radiologistIDs []string) (map[string]int64, error)
+	GetRadiologistRVUWorkloads(ctx context.Context, radiologistIDs []string) (map[string]float64, error)
 	SaveAssignment(ctx context.Context, assignment *models.Assignment) error
 }
 

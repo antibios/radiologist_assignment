@@ -25,9 +25,12 @@ func NewEngine(db DataStore, roster RosterService, rules RulesService) *Engine {
 }
 
 type candidate struct {
-	Radiologist *models.Radiologist
-	ShiftID     int64
-	CurrentLoad int64
+	Radiologist    *models.Radiologist
+	ShiftID        int64
+	CurrentLoad    int64
+	CurrentRVULoad float64
+	Strategy       string
+	IsPreferred    bool
 }
 
 func (e *Engine) Assign(ctx context.Context, study *models.Study) (*models.Assignment, error) {
@@ -45,7 +48,7 @@ func (e *Engine) Assign(ctx context.Context, study *models.Study) (*models.Assig
 	}
 
 	// Step 2: Resolve radiologists from roster for matched shifts
-	candidates, err := e.resolveRadiologists(ctx, shifts)
+	candidates, err := e.resolveRadiologists(ctx, shifts, study)
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +84,7 @@ func (e *Engine) Assign(ctx context.Context, study *models.Study) (*models.Assig
 		AssignedAt:    study.IngestTime, // Should be Now(), but using IngestTime for simplicity or mock it
 		Escalated:     escalated,
 		Strategy:      "load_balanced", // Default
+		RVU:           study.RVU,
 	}
 
 	// Save assignment (optional step in logic flow, but good for completeness)
@@ -95,15 +99,48 @@ func (e *Engine) matchShifts(ctx context.Context, study *models.Study) ([]*model
 	return e.db.GetShiftsByWorkType(ctx, study.Modality, study.BodyPart, study.Site)
 }
 
-func (e *Engine) resolveRadiologists(ctx context.Context, shifts []*models.Shift) ([]*candidate, error) {
-	radShiftMap := make(map[string]int64)
+func (e *Engine) resolveRadiologists(ctx context.Context, shifts []*models.Shift, study *models.Study) ([]*candidate, error) {
+	type shiftMeta struct {
+		ShiftID   int64
+		Strategy  string
+		Preferred map[string]bool
+		Blocked   map[string]bool
+	}
+
+	radShiftMeta := make(map[string]shiftMeta)
 	var uniqueIDs []string
 
+	studyDate := study.IngestTime.Format("2006-01-02")
+
 	for _, shift := range shifts {
+		pref := make(map[string]bool)
+		for _, id := range shift.PreferredRadiologistIDs {
+			pref[id] = true
+		}
+		blocked := make(map[string]bool)
+		for _, id := range shift.BlockedRadiologistIDs {
+			blocked[id] = true
+		}
+
 		entries := e.roster.GetByShift(shift.ID)
 		for _, entry := range entries {
-			if _, exists := radShiftMap[entry.RadiologistID]; !exists {
-				radShiftMap[entry.RadiologistID] = shift.ID
+			// Filter by date
+			if entry.StartDate.Format("2006-01-02") != studyDate {
+				continue
+			}
+
+			// Filter by blocked
+			if blocked[entry.RadiologistID] {
+				continue
+			}
+
+			if _, exists := radShiftMeta[entry.RadiologistID]; !exists {
+				radShiftMeta[entry.RadiologistID] = shiftMeta{
+					ShiftID:   shift.ID,
+					Strategy:  shift.LoadBalancingStrategy,
+					Preferred: pref,
+					Blocked:   blocked,
+				}
 				uniqueIDs = append(uniqueIDs, entry.RadiologistID)
 			}
 		}
@@ -124,14 +161,16 @@ func (e *Engine) resolveRadiologists(ctx context.Context, shifts []*models.Shift
 			continue
 		}
 
-		shiftID, ok := radShiftMap[rad.ID]
+		meta, ok := radShiftMeta[rad.ID]
 		if !ok {
 			continue
 		}
 
 		result = append(result, &candidate{
 			Radiologist: rad,
-			ShiftID:     shiftID,
+			ShiftID:     meta.ShiftID,
+			Strategy:    meta.Strategy,
+			IsPreferred: meta.Preferred[rad.ID],
 		})
 	}
 
@@ -470,18 +509,55 @@ func (e *Engine) loadBalance(ctx context.Context, candidates []*candidate) (*can
 		return nil, nil
 	}
 
-	// Workloads are already cached in candidates from filterByCapacity
-
-	// Pick candidate with lowest load
-	var best *candidate
-	minLoad := int64(999999)
-
+	// Fetch RVU loads if needed
+	var rvuIds []string
+	needRVU := false
 	for _, c := range candidates {
-		load := c.CurrentLoad
-		if load < minLoad {
-			minLoad = load
-			best = c
+		if c.Strategy == "rvu" {
+			needRVU = true
+			rvuIds = append(rvuIds, c.Radiologist.ID)
 		}
 	}
-	return best, nil
+
+	var rvuMap map[string]float64
+	if needRVU {
+		var err error
+		rvuMap, err = e.db.GetRadiologistRVUWorkloads(ctx, rvuIds)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Sort candidates by preference then load
+	sort.SliceStable(candidates, func(i, j int) bool {
+		c1 := candidates[i]
+		c2 := candidates[j]
+
+		// 1. Preferred Radiologists first
+		if c1.IsPreferred && !c2.IsPreferred {
+			return true
+		}
+		if !c1.IsPreferred && c2.IsPreferred {
+			return false
+		}
+
+		// 2. Load Balancing Strategy
+		var load1, load2 float64
+
+		if c1.Strategy == "rvu" {
+			load1 = rvuMap[c1.Radiologist.ID]
+		} else {
+			load1 = float64(c1.CurrentLoad)
+		}
+
+		if c2.Strategy == "rvu" {
+			load2 = rvuMap[c2.Radiologist.ID]
+		} else {
+			load2 = float64(c2.CurrentLoad)
+		}
+
+		return load1 < load2
+	})
+
+	return candidates[0], nil
 }

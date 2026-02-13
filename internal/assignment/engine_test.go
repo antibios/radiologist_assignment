@@ -166,6 +166,11 @@ func TestAssign_SLAEscalation(t *testing.T) {
 
 	engine := setupEngine(t, []*models.Shift{shift}, []*models.Radiologist{rad1}, map[int64][]string{5: {"rad1"}}, rules)
 
+	// Ensure roster matches study date
+	engine.roster.(*MockRosterService).GetByShiftFunc = func(shiftID int64) []*models.RosterEntry {
+		return []*models.RosterEntry{{ShiftID: shiftID, RadiologistID: "rad1", StartDate: study.IngestTime}}
+	}
+
 	assignment, err := engine.Assign(context.Background(), study)
 
 	if err != nil {
@@ -250,6 +255,11 @@ func TestAssign_TieredEscalation(t *testing.T) {
 
 	engine := setupEngine(t, []*models.Shift{shift}, []*models.Radiologist{rad1}, map[int64][]string{8: {"rad1"}}, rules)
 
+	// Ensure roster matches study date
+	engine.roster.(*MockRosterService).GetByShiftFunc = func(shiftID int64) []*models.RosterEntry {
+		return []*models.RosterEntry{{ShiftID: shiftID, RadiologistID: "rad1", StartDate: study.IngestTime}}
+	}
+
 	assignment, err := engine.Assign(context.Background(), study)
 
 	if err != nil {
@@ -266,6 +276,10 @@ func TestAssign_TieredEscalation(t *testing.T) {
 
 	// Now make it 40 mins old
 	study.IngestTime = time.Now().Add(-40 * time.Minute)
+	// Update roster mock to match new time
+	engine.roster.(*MockRosterService).GetByShiftFunc = func(shiftID int64) []*models.RosterEntry {
+		return []*models.RosterEntry{{ShiftID: shiftID, RadiologistID: "rad1", StartDate: study.IngestTime}}
+	}
 	assignment, _ = engine.Assign(context.Background(), study)
 
 	if !assignment.Escalated {

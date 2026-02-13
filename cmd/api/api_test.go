@@ -78,8 +78,8 @@ func TestAPI_OverAssignment(t *testing.T) {
 	// 2. Assign Radiologist via API
 	log.Println("TestAPI_OverAssignment: calling Assign")
 	resp, err = client.PostForm(ts.URL+"/api/shifts/assign", url.Values{
-		"shift_id":       {fmt.Sprintf("%d", createdShiftID)},
-		"radiologist_id": {"rad_limited"},
+		"shift_id":        {fmt.Sprintf("%d", createdShiftID)},
+		"radiologist_ids": {"rad_limited"},
 	})
 	if err != nil {
 		t.Fatalf("Failed to assign radiologist via API: %v", err)

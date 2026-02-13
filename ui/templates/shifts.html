@@ -18,32 +18,27 @@
                 <th>Priority</th>
                 <th>Name</th>
                 <th>Work Type</th>
+                <th>Strategy</th>
                 <th>Sites</th>
                 <th>Credentials</th>
-                <th>Roster</th>
+                <th>Preferred</th>
+                <th>Blocked</th>
                 <th>Actions</th>
             </tr>
         </thead>
         <tbody>
-            {{ $roster := .Roster }}
             {{ range .Shifts }}
             <tr id="shift-row-{{.ID}}">
                 <td>{{ .PriorityLevel }}</td>
                 <td class="shift-name">{{ .Name }}</td>
                 <td>{{ .WorkType }}</td>
+                <td>{{ .LoadBalancingStrategy }}</td>
                 <td>{{ range .Sites }}{{.}}, {{end}}</td>
                 <td>{{ range .RequiredCredentials }}{{.}}, {{end}}</td>
-                <td class="roster-cell">
-                    {{ $entries := index $roster .ID }}
-                    {{ range $entries }}
-                        <span class="badge secondary">{{ .RadiologistID }}</span>
-                    {{ end }}
-                    <button class="circle transparent small" onclick="openAssignModal({{.ID}}, '{{.Name}}')">
-                        <i>person_add</i>
-                    </button>
-                </td>
+                <td>{{ range .PreferredRadiologistIDs }}<span class="badge min">{{.}}</span>{{end}}</td>
+                <td>{{ range .BlockedRadiologistIDs }}<span class="badge min error">{{.}}</span>{{end}}</td>
                 <td>
-                    <button class="circle transparent small" onclick="openEditShiftModal({{.ID}}, '{{.Name}}')">
+                    <button class="circle transparent small" onclick="openEditShiftModal(this)" data-shift='{{json .}}'>
                         <i>edit</i>
                     </button>
                     <form action="/api/shifts/delete" method="POST" style="display:inline;">
@@ -60,47 +55,86 @@
 </div>
 
 <!-- Add Shift Modal -->
-<dialog id="add-shift-modal">
+<dialog id="add-shift-modal" class="max">
     <h5>Add New Shift</h5>
     <form action="/api/shifts" method="POST">
-        <div class="field label border">
-            <input type="text" name="name" required>
-            <label>Shift Name</label>
+        <div class="grid">
+            <div class="s12 m6">
+                <div class="field label border">
+                    <input type="text" name="name" required>
+                    <label>Shift Name</label>
+                </div>
+                <div class="field label border">
+                    <select name="work_type">
+                        {{ range .Modalities }}
+                        <option value="{{.Code}}">{{.Name}}</option>
+                        {{ end }}
+                    </select>
+                    <label>Work Type</label>
+                </div>
+                <div class="field label border">
+                    <input type="number" name="priority" value="0">
+                    <label>Priority</label>
+                </div>
+                <div class="field label border">
+                    <select name="load_balancing_strategy">
+                        <option value="count">Count (Concurrent Studies)</option>
+                        <option value="rvu">RVU (Total RVU)</option>
+                    </select>
+                    <label>Load Balancing Strategy</label>
+                </div>
+            </div>
+            <div class="s12 m6">
+                <fieldset>
+                    <legend>Sites</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;">
+                        {{ range .Sites }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="sites" value="{{.Code}}">
+                            <span>{{.Name}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+                <fieldset>
+                    <legend>Required Credentials</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;">
+                        {{ range .Credentials }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="credentials" value="{{.Code}}">
+                            <span>{{.Name}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+            </div>
+            <div class="s12 m6">
+                <fieldset>
+                    <legend>Preferred Radiologists</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;">
+                        {{ range .Radiologists }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="preferred_radiologist_ids" value="{{.ID}}">
+                            <span>{{.FirstName}} {{.LastName}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+            </div>
+            <div class="s12 m6">
+                <fieldset>
+                    <legend>Blocked Radiologists</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;">
+                        {{ range .Radiologists }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="blocked_radiologist_ids" value="{{.ID}}">
+                            <span>{{.FirstName}} {{.LastName}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+            </div>
         </div>
-        <div class="field label border">
-            <select name="work_type">
-                {{ range .Modalities }}
-                <option value="{{.Code}}">{{.Name}}</option>
-                {{ end }}
-            </select>
-            <label>Work Type</label>
-        </div>
-        <fieldset>
-            <legend>Sites</legend>
-            <nav class="vertical" style="max-height: 200px; overflow-y: auto;">
-                {{ range .Sites }}
-                <label class="checkbox">
-                    <input type="checkbox" name="sites" value="{{.Code}}">
-                    <span>{{.Name}}</span>
-                </label>
-                {{ end }}
-            </nav>
-        </fieldset>
-        <div class="field label border">
-            <input type="number" name="priority" value="0">
-            <label>Priority</label>
-        </div>
-        <fieldset>
-            <legend>Required Credentials</legend>
-            <nav class="vertical" style="max-height: 200px; overflow-y: auto;">
-                {{ range .Credentials }}
-                <label class="checkbox">
-                    <input type="checkbox" name="credentials" value="{{.Code}}">
-                    <span>{{.Name}}</span>
-                </label>
-                {{ end }}
-            </nav>
-        </fieldset>
         <nav class="right-align">
             <button type="button" class="transparent link" onclick="ui('#add-shift-modal')">Cancel</button>
             <button type="submit" class="primary">Save Shift</button>
@@ -109,13 +143,86 @@
 </dialog>
 
 <!-- Edit Shift Modal -->
-<dialog id="edit-shift-modal">
+<dialog id="edit-shift-modal" class="max">
     <h5>Edit Shift</h5>
     <form action="/api/shifts/edit" method="POST">
         <input type="hidden" name="id" id="edit-shift-id">
-        <div class="field label border">
-            <input type="text" name="name" id="edit-shift-name" required>
-            <label>Shift Name</label>
+        <div class="grid">
+            <div class="s12 m6">
+                <div class="field label border">
+                    <input type="text" name="name" id="edit-shift-name" required>
+                    <label>Shift Name</label>
+                </div>
+                <div class="field label border">
+                    <select name="work_type" id="edit-shift-work-type">
+                        {{ range .Modalities }}
+                        <option value="{{.Code}}">{{.Name}}</option>
+                        {{ end }}
+                    </select>
+                    <label>Work Type</label>
+                </div>
+                <div class="field label border">
+                    <input type="number" name="priority" id="edit-shift-priority" value="0">
+                    <label>Priority</label>
+                </div>
+                <div class="field label border">
+                    <select name="load_balancing_strategy" id="edit-shift-strategy">
+                        <option value="count">Count (Concurrent Studies)</option>
+                        <option value="rvu">RVU (Total RVU)</option>
+                    </select>
+                    <label>Load Balancing Strategy</label>
+                </div>
+            </div>
+            <div class="s12 m6">
+                <fieldset>
+                    <legend>Sites</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;" id="edit-shift-sites">
+                        {{ range .Sites }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="sites" value="{{.Code}}">
+                            <span>{{.Name}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+                <fieldset>
+                    <legend>Required Credentials</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;" id="edit-shift-creds">
+                        {{ range .Credentials }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="credentials" value="{{.Code}}">
+                            <span>{{.Name}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+            </div>
+            <div class="s12 m6">
+                <fieldset>
+                    <legend>Preferred Radiologists</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;" id="edit-shift-preferred">
+                        {{ range .Radiologists }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="preferred_radiologist_ids" value="{{.ID}}">
+                            <span>{{.FirstName}} {{.LastName}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+            </div>
+            <div class="s12 m6">
+                <fieldset>
+                    <legend>Blocked Radiologists</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;" id="edit-shift-blocked">
+                        {{ range .Radiologists }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="blocked_radiologist_ids" value="{{.ID}}">
+                            <span>{{.FirstName}} {{.LastName}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+            </div>
         </div>
         <nav class="right-align">
             <button type="button" class="transparent link" onclick="ui('#edit-shift-modal')">Cancel</button>
@@ -124,38 +231,36 @@
     </form>
 </dialog>
 
-<!-- Assign Radiologist Modal -->
-<dialog id="assign-rad-modal">
-    <h5>Assign Radiologist</h5>
-    <form action="/api/shifts/assign" method="POST">
-        <input type="hidden" name="shift_id" id="assign-shift-id">
-        <p>Assigning to: <span id="assign-shift-name"></span></p>
-        <div class="field label border">
-            <select name="radiologist_id">
-                {{ range .Radiologists }}
-                <option value="{{.ID}}">{{.FirstName}} {{.LastName}} ({{.ID}})</option>
-                {{ end }}
-            </select>
-            <label>Radiologist</label>
-        </div>
-        <nav class="right-align">
-            <button type="button" class="transparent link" onclick="ui('#assign-rad-modal')">Cancel</button>
-            <button type="submit" class="primary">Assign</button>
-        </nav>
-    </form>
-</dialog>
-
 <script>
-    function openEditShiftModal(id, name) {
-        document.getElementById('edit-shift-id').value = id;
-        document.getElementById('edit-shift-name').value = name;
-        document.getElementById('edit-shift-modal').setAttribute('open', 'true');
-    }
+    function openEditShiftModal(btn) {
+        const shift = JSON.parse(btn.getAttribute('data-shift'));
+        document.getElementById('edit-shift-id').value = shift.id;
+        document.getElementById('edit-shift-name').value = shift.name;
+        document.getElementById('edit-shift-priority').value = shift.priority_level;
 
-    function openAssignModal(id, name) {
-        document.getElementById('assign-shift-id').value = id;
-        document.getElementById('assign-shift-name').innerText = name;
-        document.getElementById('assign-rad-modal').setAttribute('open', 'true');
+        // Select work type
+        const wtSelect = document.getElementById('edit-shift-work-type');
+        wtSelect.value = shift.work_type;
+
+        // Select strategy
+        const stSelect = document.getElementById('edit-shift-strategy');
+        stSelect.value = shift.load_balancing_strategy || "count";
+
+        // Checkboxes helper
+        function checkBoxes(containerId, values) {
+            const container = document.getElementById(containerId);
+            const inputs = container.querySelectorAll('input[type="checkbox"]');
+            inputs.forEach(input => {
+                input.checked = values && values.includes(input.value);
+            });
+        }
+
+        checkBoxes('edit-shift-sites', shift.sites);
+        checkBoxes('edit-shift-creds', shift.required_credentials);
+        checkBoxes('edit-shift-preferred', shift.preferred_radiologist_ids);
+        checkBoxes('edit-shift-blocked', shift.blocked_radiologist_ids);
+
+        document.getElementById('edit-shift-modal').setAttribute('open', 'true');
     }
 </script>
 {{ end }}
