@@ -75,17 +75,14 @@
             </select>
             <label>Work Type</label>
         </div>
-        <fieldset>
-            <legend>Sites</legend>
-            <nav class="vertical" style="max-height: 200px; overflow-y: auto;">
-                {{ range .Sites }}
-                <label class="checkbox">
-                    <input type="checkbox" name="sites" value="{{.Code}}">
-                    <span>{{.Name}}</span>
-                </label>
-                {{ end }}
-            </nav>
-        </fieldset>
+        <div class="field label border" id="site-search-container" data-signals="{siteSearch: ''}">
+            <input type="text" placeholder="Search Site..." data-bind-siteSearch data-on-input__debounce.200ms="@get('/active_search?type=site')">
+            <label>Sites</label>
+            <div id="site-results"></div>
+            <div id="selected-sites-list" class="row">
+                <!-- Selected sites will appear here -->
+            </div>
+        </div>
         <div class="field label border">
             <input type="number" name="priority" value="0">
             <label>Priority</label>
@@ -130,13 +127,12 @@
     <form action="/api/shifts/assign" method="POST">
         <input type="hidden" name="shift_id" id="assign-shift-id">
         <p>Assigning to: <span id="assign-shift-name"></span></p>
-        <div class="field label border">
-            <select name="radiologist_id">
-                {{ range .Radiologists }}
-                <option value="{{.ID}}">{{.FirstName}} {{.LastName}} ({{.ID}})</option>
-                {{ end }}
-            </select>
+        <div class="field label border" id="radiologist-search-container" data-signals="{radiologistSearch: ''}">
+            <input type="text" placeholder="Search Radiologist..." data-bind-radiologistSearch data-on-input__debounce.200ms="@get('/active_search?type=radiologist')">
             <label>Radiologist</label>
+            <div id="radiologist-results"></div>
+            <input type="hidden" name="radiologist_id" id="selected-radiologist-id">
+            <div id="selected-radiologist-display"></div>
         </div>
         <nav class="right-align">
             <button type="button" class="transparent link" onclick="ui('#assign-rad-modal')">Cancel</button>
@@ -156,6 +152,37 @@
         document.getElementById('assign-shift-id').value = id;
         document.getElementById('assign-shift-name').innerText = name;
         document.getElementById('assign-rad-modal').setAttribute('open', 'true');
+    }
+
+    function selectRadiologist(id, name) {
+        document.getElementById('selected-radiologist-id').value = id;
+        document.getElementById('selected-radiologist-display').innerHTML = `
+            <div class="chip">
+                <span>${name}</span>
+                <i onclick="clearRadiologist()">close</i>
+            </div>
+        `;
+        document.getElementById('radiologist-results').innerHTML = '';
+    }
+
+    function clearRadiologist() {
+        document.getElementById('selected-radiologist-id').value = '';
+        document.getElementById('selected-radiologist-display').innerHTML = '';
+    }
+
+    function addSite(code, name) {
+        const list = document.getElementById('selected-sites-list');
+        if (list.querySelector(`input[value="${code}"]`)) return;
+
+        const div = document.createElement('div');
+        div.className = 'chip';
+        div.innerHTML = `
+            <span>${name}</span>
+            <input type="hidden" name="sites" value="${code}">
+            <i onclick="this.parentElement.remove()">close</i>
+        `;
+        list.appendChild(div);
+        document.getElementById('site-results').innerHTML = '';
     }
 </script>
 {{ end }}

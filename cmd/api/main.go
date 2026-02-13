@@ -292,6 +292,7 @@ func main() {
 	http.HandleFunc("/calendar", handleCalendar)
 
 	http.HandleFunc("/api/simulate", handleSimulateAssignment)
+	http.HandleFunc("/active_search", handleActiveSearch)
 
 	log.Printf("API/UI Server started on :%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
