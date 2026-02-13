@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"net/http"
 	"net/http/httptest"
 	"radiology-assignment/internal/assignment"
@@ -41,11 +42,17 @@ func TestE2E(t *testing.T) {
 			handleAssignRadiologist(w, r)
 		case "/api/simulate":
 			handleSimulateAssignment(w, r)
+		case "/active_search":
+			handleActiveSearch(w, r)
 		case "/calendar":
 			handleCalendar(w, r)
 		default:
 			if strings.HasPrefix(r.URL.Path, "/static/") {
-				http.StripPrefix("/static/", http.FileServer(http.Dir("ui/static"))).ServeHTTP(w, r)
+				dir := "ui/static"
+				if _, err := os.Stat(dir); os.IsNotExist(err) {
+					dir = "../../ui/static"
+				}
+				http.StripPrefix("/static/", http.FileServer(http.Dir(dir))).ServeHTTP(w, r)
 				return
 			}
 			http.NotFound(w, r)
@@ -110,9 +117,14 @@ func TestE2E(t *testing.T) {
 			chromedp.WaitVisible(`#add-shift-modal input[name="name"]`, chromedp.ByQuery),
 			// Fill Form
 			chromedp.SendKeys(`#add-shift-modal input[name="name"]`, shiftName, chromedp.ByQuery),
-			chromedp.SendKeys(`#add-shift-modal input[name="work_type"]`, "CT", chromedp.ByQuery),
-			chromedp.SendKeys(`#add-shift-modal input[name="site"]`, "Metro", chromedp.ByQuery),
-			chromedp.SendKeys(`#add-shift-modal input[name="credentials"]`, "CT,Neuro", chromedp.ByQuery),
+			chromedp.SendKeys(`#add-shift-modal select[name="work_type"]`, "CT", chromedp.ByQuery),
+			// Use active search for Site (Select SiteA)
+			chromedp.SetValue(`#site-search-container input`, "SiteA", chromedp.ByQuery),
+			chromedp.Evaluate(`document.querySelector('#site-search-container input').dispatchEvent(new Event('input'))`, nil),
+			chromedp.Sleep(2*time.Second), // Wait for debounce and fetch
+			chromedp.WaitVisible(`#site-results a`, chromedp.ByQuery),
+			chromedp.Click(`#site-results a`, chromedp.ByQuery),
+
 			// Submit
 			chromedp.Click(`#add-shift-modal button[type="submit"]`, chromedp.ByQuery),
 			// Verify
@@ -135,7 +147,14 @@ func TestE2E(t *testing.T) {
 			chromedp.Navigate(ts.URL+"/shifts"),
 			chromedp.Click(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//button[contains(@onclick, "openAssignModal")]`, shiftName), chromedp.BySearch),
 			chromedp.Sleep(500*time.Millisecond),
-			chromedp.WaitVisible(`#assign-rad-modal select[name="radiologist_id"]`, chromedp.ByQuery),
+			// Search for radiologist rad1
+			chromedp.WaitVisible(`#radiologist-search-container input`, chromedp.ByQuery),
+			chromedp.SetValue(`#radiologist-search-container input`, "rad1", chromedp.ByQuery),
+			chromedp.Evaluate(`document.querySelector('#radiologist-search-container input').dispatchEvent(new Event('input'))`, nil),
+			chromedp.Sleep(2*time.Second),
+			chromedp.WaitVisible(`#radiologist-results a`, chromedp.ByQuery),
+			chromedp.Click(`#radiologist-results a`, chromedp.ByQuery),
+
 			chromedp.Click(`#assign-rad-modal button[type="submit"]`, chromedp.ByQuery),
 			chromedp.WaitVisible(fmt.Sprintf(`//tr[td[contains(text(), "%s")]]//span[contains(text(), "rad1")]`, shiftName), chromedp.BySearch),
 		)

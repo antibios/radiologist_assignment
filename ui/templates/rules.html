@@ -177,13 +177,46 @@
 
         const div = document.createElement('div');
         div.className = 'field label border suffix';
-        div.innerHTML = `
-            <input type="text" name="${inputName}" value="${value}">
-            <label>${labelText}</label>
-            <a class="transparent circle" href="javascript:void(0)" onclick="this.parentElement.remove()"><i>close</i></a>
-        `;
+
+        if (key === 'procedure_code') {
+            const uniqueId = 'proc-' + Math.random().toString(36).substr(2, 9);
+            const targetId = 'results-' + uniqueId;
+            div.setAttribute('data-signals', JSON.stringify({procedureSearch: value || ''}));
+            div.innerHTML = `
+                <input type="text" data-bind-procedureSearch
+                       data-on-input__debounce.200ms="@get('/active_search?type=procedure&target=${targetId}')"
+                       value="${value}" placeholder="Search Procedure...">
+                <label>${labelText}</label>
+                <div id="${targetId}" class="active-search-results"></div>
+                <input type="hidden" name="${inputName}" value="${value}">
+                <a class="transparent circle" href="javascript:void(0)" onclick="this.parentElement.remove()"><i>close</i></a>
+            `;
+        } else {
+            div.innerHTML = `
+                <input type="text" name="${inputName}" value="${value}">
+                <label>${labelText}</label>
+                <a class="transparent circle" href="javascript:void(0)" onclick="this.parentElement.remove()"><i>close</i></a>
+            `;
+        }
+
         container.appendChild(div);
         ui();
+    }
+
+    function selectProcedure(el, code) {
+        const wrapper = el.closest('[data-signals]');
+        const searchInput = wrapper.querySelector('input[data-bind-procedureSearch]');
+        const hiddenInput = wrapper.querySelector('input[type=hidden]');
+        const results = wrapper.querySelector('.active-search-results');
+
+        if (hiddenInput) {
+             hiddenInput.value = code;
+             if (searchInput) {
+                 searchInput.value = code;
+                 searchInput.dispatchEvent(new Event('input'));
+             }
+        }
+        if (results) results.innerHTML = '';
     }
 
     function addCriteria(mode) {
