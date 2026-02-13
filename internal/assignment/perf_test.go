@@ -63,6 +63,22 @@ func (s *BenchStore) GetRadiologistWorkloads(ctx context.Context, radiologistIDs
 	return counts, nil
 }
 
+func (s *BenchStore) GetRadiologistRVUWorkloads(ctx context.Context, radiologistIDs []string) (map[string]float64, error) {
+	counts := make(map[string]float64)
+	targetIDs := make(map[string]bool)
+	for _, id := range radiologistIDs {
+		counts[id] = 0
+		targetIDs[id] = true
+	}
+
+	for _, a := range s.assignments {
+		if targetIDs[a.RadiologistID] {
+			counts[a.RadiologistID] += a.RVU
+		}
+	}
+	return counts, nil
+}
+
 func (s *BenchStore) SaveAssignment(ctx context.Context, assignment *models.Assignment) error {
 	s.assignments = append(s.assignments, assignment)
 	return nil

@@ -17,9 +17,9 @@
         <div class="row">
             {{ range .UnfilledShifts }}
             <div class="col s12 m6 l4">
-                <div class="chip error">
+                <div class="chip error pointer" onclick='openRosterModal({{.ShiftID}}, "{{.ShiftName}}", "{{.Date.Format "2006-01-02"}}", {{json .AssignedRadiologistIDs}})'>
                     <i>warning</i>
-                    <span>{{ .Date.Format "Jan 02" }}: {{ .ShiftName }} ({{ .ShiftType }})</span>
+                    <span>{{ .Date.Format "Jan 02" }}: {{ .ShiftName }}</span>
                 </div>
             </div>
             {{ else }}
@@ -45,11 +45,13 @@
             </div>
             <div class="row">
                 {{ range .Days }}
-                <div class="col s1-7 border padding">
-                    <h6>{{ .Date.Format "02" }}</h6>
+                <div class="col s1-7 border padding" style="min-height: 100px;">
+                    <h6 class="center-align">{{ .Date.Format "02" }}</h6>
                     {{ range .Shifts }}
-                        <div class="tiny-text {{ if .Filled }}green-text{{ else }}red-text{{ end }}">
-                            {{ .ShiftName }}
+                        <div class="chip small {{ if .Filled }}green{{ else }}red{{ end }}" style="width: 100%; justify-content: start; cursor: pointer;"
+                             onclick='openRosterModal({{.ShiftID}}, "{{.ShiftName}}", "{{.Date.Format "2006-01-02"}}", {{json .AssignedRadiologistIDs}})'>
+                            <span class="tiny-text truncate">{{ .ShiftName }}</span>
+                            {{ if .Filled }}<span class="badge white black-text circle right">{{len .AssignedRadiologistIDs}}</span>{{ end }}
                         </div>
                     {{ end }}
                 </div>
@@ -65,6 +67,7 @@
                         <th>Work Type</th>
                         <th>Status</th>
                         <th>Assigned To</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -82,7 +85,16 @@
                                 <span class="badge red">Unfilled</span>
                                 {{ end }}
                             </td>
-                            <td>{{ .Radiologist }}</td>
+                            <td>
+                                {{ range .RadiologistNames }}
+                                <div class="chip small secondary">{{.}}</div>
+                                {{ end }}
+                            </td>
+                            <td>
+                                <button class="circle transparent small" onclick='openRosterModal({{.ShiftID}}, "{{.ShiftName}}", "{{.Date.Format "2006-01-02"}}", {{json .AssignedRadiologistIDs}})'>
+                                    <i>edit</i>
+                                </button>
+                            </td>
                         </tr>
                         {{ end }}
                     {{ end }}
@@ -92,8 +104,73 @@
     </div>
 </div>
 
+<!-- Manage Roster Modal -->
+<dialog id="manage-roster-modal">
+    <h5>Manage Roster</h5>
+    <p>
+        <strong>Shift:</strong> <span id="roster-shift-name"></span><br>
+        <strong>Date:</strong> <span id="roster-date-display"></span>
+    </p>
+    <form action="/api/shifts/assign" method="POST">
+        <input type="hidden" name="shift_id" id="roster-shift-id">
+        <input type="hidden" name="date" id="roster-date">
+
+        <fieldset>
+            <legend>Assigned Radiologists</legend>
+            <nav class="vertical" style="max-height: 300px; overflow-y: auto;">
+                {{ range .Radiologists }}
+                <label class="checkbox">
+                    <input type="checkbox" name="radiologist_ids" value="{{.ID}}" id="rad-{{.ID}}">
+                    <span>{{.FirstName}} {{.LastName}}</span>
+                </label>
+                {{ end }}
+            </nav>
+        </fieldset>
+
+        <nav class="right-align">
+            <button type="button" class="transparent link" onclick="ui('#manage-roster-modal')">Cancel</button>
+            <button type="submit" class="primary">Save Assignment</button>
+        </nav>
+    </form>
+</dialog>
+
+<script>
+    function openRosterModal(shiftID, shiftName, date, assignedIDs) {
+        document.getElementById('roster-shift-id').value = shiftID;
+        document.getElementById('roster-date').value = date;
+        document.getElementById('roster-shift-name').innerText = shiftName;
+        document.getElementById('roster-date-display').innerText = date;
+
+        // Reset all checkboxes
+        const inputs = document.querySelectorAll('#manage-roster-modal input[type="checkbox"]');
+        inputs.forEach(input => input.checked = false);
+
+        // Check assigned
+        if (assignedIDs) {
+            if (typeof assignedIDs === 'string') {
+                try {
+                    assignedIDs = JSON.parse(assignedIDs);
+                } catch (e) {
+                    console.error("Failed to parse assignedIDs", e);
+                    assignedIDs = [];
+                }
+            }
+            if (Array.isArray(assignedIDs)) {
+                assignedIDs.forEach(id => {
+                    const el = document.getElementById('rad-' + id);
+                    if (el) el.checked = true;
+                });
+            }
+        }
+
+        ui('#manage-roster-modal');
+    }
+</script>
+
 <style>
     .col.s1-7 { width: 14.28%; }
-    .tiny-text { font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tiny-text { font-size: 0.7rem; }
+    .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pointer { cursor: pointer; }
 </style>
 {{ end }}

@@ -11,6 +11,7 @@ type MockDataStore struct {
 	GetRadiologistsFunc               func(ctx context.Context, ids []string) ([]*models.Radiologist, error)
 	GetRadiologistCurrentWorkloadFunc func(ctx context.Context, radiologistID string) (int64, error)
 	GetRadiologistWorkloadsFunc       func(ctx context.Context, radiologistIDs []string) (map[string]int64, error)
+	GetRadiologistRVUWorkloadsFunc    func(ctx context.Context, radiologistIDs []string) (map[string]float64, error)
 	SaveAssignmentFunc                func(ctx context.Context, assignment *models.Assignment) error
 }
 
@@ -45,6 +46,13 @@ func (m *MockDataStore) GetRadiologistWorkloads(ctx context.Context, radiologist
 		results[id] = val
 	}
 	return results, nil
+}
+
+func (m *MockDataStore) GetRadiologistRVUWorkloads(ctx context.Context, radiologistIDs []string) (map[string]float64, error) {
+	if m.GetRadiologistRVUWorkloadsFunc != nil {
+		return m.GetRadiologistRVUWorkloadsFunc(ctx, radiologistIDs)
+	}
+	return make(map[string]float64), nil
 }
 
 func (m *MockDataStore) SaveAssignment(ctx context.Context, assignment *models.Assignment) error {

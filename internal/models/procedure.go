@@ -8,6 +8,7 @@ type Procedure struct {
 	Description string    `json:"description"`
 	Modality    string    `json:"modality"`
 	BodyPart    string    `json:"body_part"`
+	RVU         float64   `json:"rvu"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

@@ -32,7 +32,8 @@ var (
 		{ID: 103, StudyID: "ST1003", RadiologistID: "rad_vip", ShiftID: 2, Strategy: "special_arrangement", AssignedAt: time.Now().Add(-1 * time.Minute)},
 	}
 
-	radiologistWorkload = make(map[string]int64)
+	radiologistWorkload    = make(map[string]int64)
+	radiologistRVUWorkload = make(map[string]float64)
 
 	shiftsMu sync.RWMutex
 	shifts   = []*models.Shift{
@@ -98,6 +99,7 @@ func init() {
 	// Initialize workload map from static assignments
 	for _, a := range assignments {
 		radiologistWorkload[a.RadiologistID]++
+		radiologistRVUWorkload[a.RadiologistID] += a.RVU
 	}
 	radiologistsMap = make(map[string]*models.Radiologist)
 	for _, rad := range radiologists {
@@ -170,12 +172,31 @@ func (s *InMemoryStore) GetRadiologistWorkloads(ctx context.Context, radiologist
 	return counts, nil
 }
 
+func (s *InMemoryStore) GetRadiologistRVUWorkloads(ctx context.Context, radiologistIDs []string) (map[string]float64, error) {
+	assignmentsMu.RLock()
+	defer assignmentsMu.RUnlock()
+	counts := make(map[string]float64)
+	targetIDs := make(map[string]bool)
+	for _, id := range radiologistIDs {
+		counts[id] = 0
+		targetIDs[id] = true
+	}
+
+	for _, a := range assignments {
+		if targetIDs[a.RadiologistID] {
+			counts[a.RadiologistID] += a.RVU
+		}
+	}
+	return counts, nil
+}
+
 func (s *InMemoryStore) SaveAssignment(ctx context.Context, a *models.Assignment) error {
 	assignmentsMu.Lock()
 	defer assignmentsMu.Unlock()
 	a.ID = int64(len(assignments) + 1)
 	assignments = append(assignments, a)
 	radiologistWorkload[a.RadiologistID]++
+	radiologistRVUWorkload[a.RadiologistID] += a.RVU
 	return nil
 }
 
@@ -227,6 +248,7 @@ type CalendarData struct {
 	View           string
 	Days           []CalendarDay
 	UnfilledShifts []CalendarShift
+	Radiologists   []*models.Radiologist
 }
 
 type CalendarDay struct {
@@ -235,11 +257,13 @@ type CalendarDay struct {
 }
 
 type CalendarShift struct {
-	ShiftName   string
-	ShiftType   string
-	Date        time.Time
-	Filled      bool
-	Radiologist string
+	ShiftID                int64
+	ShiftName              string
+	ShiftType              string
+	Date                   time.Time
+	Filled                 bool
+	RadiologistNames       []string
+	AssignedRadiologistIDs []string
 }
 
 type ProceduresData struct {
@@ -572,20 +596,29 @@ func handleAPIShifts(w http.ResponseWriter, r *http.Request) {
 		workType := r.FormValue("work_type")
 		priorityStr := r.FormValue("priority")
 		priority, _ := strconv.Atoi(priorityStr)
+		strategy := r.FormValue("load_balancing_strategy")
+		if strategy == "" {
+			strategy = "count"
+		}
 
 		// Capture multi-value fields
 		sites := r.Form["sites"]
 		creds := r.Form["credentials"]
+		prefRads := r.Form["preferred_radiologist_ids"]
+		blockRads := r.Form["blocked_radiologist_ids"]
 
 		shiftsMu.Lock()
 		newShift := &models.Shift{
-			ID:                  int64(len(shifts) + 1),
-			Name:                name,
-			WorkType:            workType,
-			Sites:               sites,
-			PriorityLevel:       priority,
-			RequiredCredentials: creds,
-			CreatedAt:           time.Now(),
+			ID:                      int64(len(shifts) + 1),
+			Name:                    name,
+			WorkType:                workType,
+			Sites:                   sites,
+			PriorityLevel:           priority,
+			RequiredCredentials:     creds,
+			PreferredRadiologistIDs: prefRads,
+			BlockedRadiologistIDs:   blockRads,
+			LoadBalancingStrategy:   strategy,
+			CreatedAt:               time.Now(),
 		}
 		shifts = append(shifts, newShift)
 		shiftsMu.Unlock()
@@ -605,6 +638,18 @@ func handleEditShift(w http.ResponseWriter, r *http.Request) {
 
 		idStr := r.FormValue("id")
 		name := r.FormValue("name")
+		workType := r.FormValue("work_type")
+		priorityStr := r.FormValue("priority")
+		priority, _ := strconv.Atoi(priorityStr)
+		strategy := r.FormValue("load_balancing_strategy")
+		if strategy == "" {
+			strategy = "count"
+		}
+
+		sites := r.Form["sites"]
+		creds := r.Form["credentials"]
+		prefRads := r.Form["preferred_radiologist_ids"]
+		blockRads := r.Form["blocked_radiologist_ids"]
 
 		id, _ := strconv.ParseInt(idStr, 10, 64)
 
@@ -612,6 +657,14 @@ func handleEditShift(w http.ResponseWriter, r *http.Request) {
 		for _, s := range shifts {
 			if s.ID == id {
 				s.Name = name
+				s.WorkType = workType
+				s.PriorityLevel = priority
+				s.LoadBalancingStrategy = strategy
+				s.Sites = sites
+				s.RequiredCredentials = creds
+				s.PreferredRadiologistIDs = prefRads
+				s.BlockedRadiologistIDs = blockRads
+				s.UpdatedAt = time.Now()
 				break
 			}
 		}
@@ -655,22 +708,45 @@ func handleAssignRadiologist(w http.ResponseWriter, r *http.Request) {
 		}
 
 		shiftIDStr := r.FormValue("shift_id")
-		radID := r.FormValue("radiologist_id")
+		dateStr := r.FormValue("date")
+		radIDs := r.Form["radiologist_ids"]
 
 		shiftID, _ := strconv.ParseInt(shiftIDStr, 10, 64)
+		date, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			// Fallback to today if date missing (legacy behavior support?)
+			date = time.Now()
+			dateStr = date.Format("2006-01-02")
+		}
 
 		rosterMu.Lock()
-		newEntry := &models.RosterEntry{
-			ID:            int64(len(roster) + 1),
-			ShiftID:       shiftID,
-			RadiologistID: radID,
-			StartDate:     time.Now(),
-			Status:        "active",
+		// Remove existing entries for this shift and date
+		var newRoster []*models.RosterEntry
+		for _, entry := range roster {
+			if entry.ShiftID == shiftID && entry.StartDate.Format("2006-01-02") == dateStr {
+				continue
+			}
+			newRoster = append(newRoster, entry)
 		}
-		roster = append(roster, newEntry)
+
+		// Add new entries
+		for _, rid := range radIDs {
+			newRoster = append(newRoster, &models.RosterEntry{
+				ID:            int64(len(roster) + len(newRoster) + 1), // Simple ID gen
+				ShiftID:       shiftID,
+				RadiologistID: rid,
+				StartDate:     date,
+				Status:        "active",
+			})
+		}
+		roster = newRoster
 		rosterMu.Unlock()
 
-		http.Redirect(w, r, "/shifts", http.StatusSeeOther)
+		referer := r.Header.Get("Referer")
+		if referer == "" {
+			referer = "/calendar"
+		}
+		http.Redirect(w, r, referer, http.StatusSeeOther)
 		return
 	}
 }
@@ -702,6 +778,8 @@ func handleAPIProcedures(w http.ResponseWriter, r *http.Request) {
 		desc := r.FormValue("description")
 		modality := r.FormValue("modality")
 		bodyPart := r.FormValue("body_part")
+		rvuStr := r.FormValue("rvu")
+		rvu, _ := strconv.ParseFloat(rvuStr, 64)
 
 		proceduresMu.Lock()
 		newProc := &models.Procedure{
@@ -710,6 +788,7 @@ func handleAPIProcedures(w http.ResponseWriter, r *http.Request) {
 			Description: desc,
 			Modality:    modality,
 			BodyPart:    bodyPart,
+			RVU:         rvu,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		}
@@ -733,6 +812,8 @@ func handleEditProcedure(w http.ResponseWriter, r *http.Request) {
 		desc := r.FormValue("description")
 		modality := r.FormValue("modality")
 		bodyPart := r.FormValue("body_part")
+		rvuStr := r.FormValue("rvu")
+		rvu, _ := strconv.ParseFloat(rvuStr, 64)
 
 		proceduresMu.Lock()
 		for _, p := range procedures {
@@ -740,6 +821,7 @@ func handleEditProcedure(w http.ResponseWriter, r *http.Request) {
 				p.Description = desc
 				p.Modality = modality
 				p.BodyPart = bodyPart
+				p.RVU = rvu
 				p.UpdatedAt = time.Now()
 				break
 			}
@@ -1042,27 +1124,33 @@ func handleCalendar(w http.ResponseWriter, r *http.Request) {
 		for _, s := range shifts {
 			// Check if filled
 			filled := false
-			radName := ""
+			var radNames []string
+			var radIDs []string
+
 			for _, entry := range roster {
 				if entry.ShiftID == s.ID {
 					// Check if date falls in roster entry range
-					// Simple check: StartDate only for now as defined in roster logic
-					// Assuming daily roster entries or handling logic
-					// Let's match Year/Month/Day
 					if entry.StartDate.Year() == d.Year() && entry.StartDate.Month() == d.Month() && entry.StartDate.Day() == d.Day() {
 						filled = true
-						radName = entry.RadiologistID // Should map to name via lookups
-						break
+						radIDs = append(radIDs, entry.RadiologistID)
+						// Lookup name
+						if rad, ok := radiologistsMap[entry.RadiologistID]; ok {
+							radNames = append(radNames, rad.FirstName+" "+rad.LastName)
+						} else {
+							radNames = append(radNames, entry.RadiologistID)
+						}
 					}
 				}
 			}
 
 			cs := CalendarShift{
-				ShiftName:   s.Name,
-				ShiftType:   s.WorkType,
-				Date:        d,
-				Filled:      filled,
-				Radiologist: radName,
+				ShiftID:                s.ID,
+				ShiftName:              s.Name,
+				ShiftType:              s.WorkType,
+				Date:                   d,
+				Filled:                 filled,
+				RadiologistNames:       radNames,
+				AssignedRadiologistIDs: radIDs,
 			}
 			day.Shifts = append(day.Shifts, cs)
 
@@ -1081,6 +1169,7 @@ func handleCalendar(w http.ResponseWriter, r *http.Request) {
 		View:           view,
 		Days:           days,
 		UnfilledShifts: unfilled,
+		Radiologists:   radiologists,
 	}
 
 	render(w, "calendar", data, "ui/templates/calendar.html")
@@ -1123,6 +1212,17 @@ func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
 			site = "SiteA"
 		}
 
+		// Lookup RVU
+		var rvu float64
+		proceduresMu.RLock()
+		for _, p := range procedures {
+			if p.Code == procedureCode {
+				rvu = p.RVU
+				break
+			}
+		}
+		proceduresMu.RUnlock()
+
 		study := &models.Study{
 			ID:                   studyID,
 			Modality:             modality,
@@ -1138,6 +1238,7 @@ func handleSimulateAssignment(w http.ResponseWriter, r *http.Request) {
 			PriorLocation:        priorLocation,
 			Technician:           technician,
 			Transcriptionist:     transcriptionist,
+			RVU:                  rvu,
 		}
 
 		assignment, err := engine.Assign(context.Background(), study)

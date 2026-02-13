@@ -11,5 +11,6 @@ type Assignment struct {
 	Escalated     bool      `json:"escalated"`
 	Strategy      string    `json:"strategy"`
 	RuleMatchedID *int64    `json:"rule_matched_id"`
+	RVU           float64   `json:"rvu"`
 	CreatedAt     time.Time `json:"created_at"`
 }
