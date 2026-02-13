@@ -81,7 +81,8 @@ var (
 	}
 
 	// Mock Radiologists for assignment
-	radiologists = []*models.Radiologist{
+	radiologistsMu sync.RWMutex
+	radiologists   = []*models.Radiologist{
 		{ID: "rad1", FirstName: "John", LastName: "Doe", MaxConcurrentStudies: 5, Status: "active"},
 		{ID: "rad2", FirstName: "Jane", LastName: "Smith", MaxConcurrentStudies: 5, Status: "active"},
 		{ID: "rad3", FirstName: "Bob", LastName: "Jones", MaxConcurrentStudies: 5, Status: "active"},
@@ -248,6 +249,11 @@ type ProceduresData struct {
 	BodyParts  []models.BodyPart
 }
 
+type ConfigPageData struct {
+	*models.ReferenceData
+	Radiologists []*models.Radiologist
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -288,6 +294,10 @@ func main() {
 	http.HandleFunc("/api/config/credentials", handleAPICredentials)
 	http.HandleFunc("/api/config/credentials/edit", handleEditCredential)
 	http.HandleFunc("/api/config/credentials/delete", handleDeleteCredential)
+
+	http.HandleFunc("/api/config/radiologists", handleAPIRadiologists)
+	http.HandleFunc("/api/config/radiologists/edit", handleEditRadiologist)
+	http.HandleFunc("/api/config/radiologists/delete", handleDeleteRadiologist)
 
 	http.HandleFunc("/calendar", handleCalendar)
 
@@ -777,9 +787,139 @@ func handleDeleteProcedure(w http.ResponseWriter, r *http.Request) {
 
 // Config Handlers
 
+func handleAPIRadiologists(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		id := r.FormValue("id")
+		firstName := r.FormValue("first_name")
+		lastName := r.FormValue("last_name")
+		maxConcurrentStudiesStr := r.FormValue("max_concurrent_studies")
+		maxConcurrentStudies, _ := strconv.Atoi(maxConcurrentStudiesStr)
+		status := "active" // Default status
+
+		// Capture multi-value fields
+		credentials := r.Form["credentials"]
+		specialties := r.Form["specialties"]
+
+		radiologistsMu.Lock()
+		// Check for duplicate ID
+		for _, rad := range radiologists {
+			if rad.ID == id {
+				radiologistsMu.Unlock()
+				http.Error(w, "Radiologist ID already exists", http.StatusBadRequest)
+				return
+			}
+		}
+
+		newRad := &models.Radiologist{
+			ID:                   id,
+			FirstName:            firstName,
+			LastName:             lastName,
+			Credentials:          credentials,
+			Specialties:          specialties,
+			MaxConcurrentStudies: maxConcurrentStudies,
+			Status:               status,
+			CreatedAt:            time.Now(),
+			UpdatedAt:            time.Now(),
+		}
+		radiologists = append(radiologists, newRad)
+		// Update map as well
+		radiologistsMap[id] = newRad
+		radiologistsMu.Unlock()
+
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
+func handleEditRadiologist(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		id := r.FormValue("id")
+		firstName := r.FormValue("first_name")
+		lastName := r.FormValue("last_name")
+		maxConcurrentStudiesStr := r.FormValue("max_concurrent_studies")
+		maxConcurrentStudies, _ := strconv.Atoi(maxConcurrentStudiesStr)
+
+		// Status might be editable, or default to active
+		status := r.FormValue("status")
+		if status == "" {
+			status = "active"
+		}
+
+		credentials := r.Form["credentials"]
+		specialties := r.Form["specialties"]
+
+		radiologistsMu.Lock()
+		for _, rad := range radiologists {
+			if rad.ID == id {
+				rad.FirstName = firstName
+				rad.LastName = lastName
+				rad.MaxConcurrentStudies = maxConcurrentStudies
+				rad.Credentials = credentials
+				rad.Specialties = specialties
+				rad.Status = status
+				rad.UpdatedAt = time.Now()
+				break
+			}
+		}
+		// Update map not strictly needed if we updated the pointer in slice which is also in map
+		radiologistsMu.Unlock()
+
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
+func handleDeleteRadiologist(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		id := r.FormValue("id")
+
+		radiologistsMu.Lock()
+		var newRads []*models.Radiologist
+		for _, rad := range radiologists {
+			if rad.ID != id {
+				newRads = append(newRads, rad)
+			}
+		}
+		radiologists = newRads
+		delete(radiologistsMap, id)
+		radiologistsMu.Unlock()
+
+		http.Redirect(w, r, "/config", http.StatusSeeOther)
+		return
+	}
+	http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+}
+
 func handleConfig(w http.ResponseWriter, r *http.Request) {
 	configMu.RLock()
-	data := refData
+	radiologistsMu.RLock()
+
+	// Create a shallow copy of the radiologists slice
+	rads := make([]*models.Radiologist, len(radiologists))
+	copy(rads, radiologists)
+
+	data := ConfigPageData{
+		ReferenceData: refData,
+		Radiologists:  rads,
+	}
+	radiologistsMu.RUnlock()
 	configMu.RUnlock()
 
 	render(w, "config", data, "ui/templates/config.html")

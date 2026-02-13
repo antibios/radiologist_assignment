@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"radiology-assignment/internal/models"
 	"strings"
 	"testing"
-	"radiology-assignment/internal/models"
 )
 
 func TestHandleAPIProcedures(t *testing.T) {

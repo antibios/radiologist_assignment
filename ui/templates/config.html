@@ -8,6 +8,7 @@
 <div style="padding: 1rem;">
     <nav class="tabbed">
         <a class="active" data-ui="#sites">Sites</a>
+        <a data-ui="#radiologists">Radiologists</a>
         <a data-ui="#modalities">Modalities</a>
         <a data-ui="#bodyparts">Body Parts</a>
         <a data-ui="#credentials">Credentials</a>
@@ -41,6 +42,52 @@
                             onclick="editSite('{{ .Code }}', '{{ .Name }}')"><i>edit</i></button>
                         <form action="/api/config/sites/delete" method="POST" style="margin:0;">
                             <input type="hidden" name="code" value="{{ .Code }}">
+                            <button class="circle small transparent error-text" type="submit"><i>delete</i></button>
+                        </form>
+                    </nav>
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+
+<div id="radiologists" class="page">
+    <div class="row">
+        <div class="col max">
+            <h5>Radiologists</h5>
+        </div>
+        <div class="col min">
+            <button class="primary" onclick="ui('#addRadiologistModal')"><i>add</i>Add Radiologist</button>
+        </div>
+    </div>
+    <table class="stripes">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Concurrent</th>
+                <th>Credentials</th>
+                <th>Specialties</th>
+                <th>Status</th>
+                <th class="min">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ range .Radiologists }}
+            <tr>
+                <td>{{ .ID }}</td>
+                <td>{{ .FirstName }} {{ .LastName }}</td>
+                <td>{{ .MaxConcurrentStudies }}</td>
+                <td>{{ range .Credentials }}<span class="badge secondary">{{.}}</span> {{end}}</td>
+                <td>{{ range .Specialties }}<span class="badge secondary">{{.}}</span> {{end}}</td>
+                <td>{{ .Status }}</td>
+                <td>
+                    <nav>
+                        <button class="circle small transparent"
+                            onclick="editRadiologist('{{ .ID }}')"><i>edit</i></button>
+                        <form action="/api/config/radiologists/delete" method="POST" style="margin:0;">
+                            <input type="hidden" name="id" value="{{ .ID }}">
                             <button class="circle small transparent error-text" type="submit"><i>delete</i></button>
                         </form>
                     </nav>
@@ -164,6 +211,130 @@
 </div>
 
 <!-- Modals -->
+
+<dialog class="modal" id="addRadiologistModal">
+    <h5>Add Radiologist</h5>
+    <form action="/api/config/radiologists" method="POST">
+        <div class="row">
+            <div class="field label border">
+                <input type="text" name="id" required>
+                <label>ID</label>
+            </div>
+            <div class="field label border">
+                <input type="number" name="max_concurrent_studies" value="5" required>
+                <label>Max Concurrent</label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="field label border">
+                <input type="text" name="first_name" required>
+                <label>First Name</label>
+            </div>
+            <div class="field label border">
+                <input type="text" name="last_name" required>
+                <label>Last Name</label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col">
+                <fieldset>
+                    <legend>Credentials</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;">
+                        {{ range .Credentials }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="credentials" value="{{.Code}}">
+                            <span>{{.Name}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+            </div>
+            <div class="col">
+                <fieldset>
+                    <legend>Specialties (Modalities)</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;">
+                        {{ range .Modalities }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="specialties" value="{{.Code}}">
+                            <span>{{.Name}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+            </div>
+        </div>
+        <div class="row">
+            <button type="button" class="transparent" onclick="ui('#addRadiologistModal')">Cancel</button>
+            <button type="submit">Save</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog class="modal" id="editRadiologistModal">
+    <h5>Edit Radiologist</h5>
+    <form action="/api/config/radiologists/edit" method="POST">
+        <input type="hidden" name="id" id="editRadId">
+        <div class="row">
+             <div class="field label border">
+                <input type="text" id="editRadIdDisplay" disabled>
+                <label>ID</label>
+            </div>
+            <div class="field label border">
+                <input type="number" name="max_concurrent_studies" id="editRadMax" required>
+                <label>Max Concurrent</label>
+            </div>
+            <div class="field label border">
+                <select name="status" id="editRadStatus">
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+                <label>Status</label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="field label border">
+                <input type="text" name="first_name" id="editRadFirstName" required>
+                <label>First Name</label>
+            </div>
+            <div class="field label border">
+                <input type="text" name="last_name" id="editRadLastName" required>
+                <label>Last Name</label>
+            </div>
+        </div>
+         <div class="row">
+            <div class="col">
+                <fieldset>
+                    <legend>Credentials</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;">
+                        {{ range .Credentials }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="credentials" value="{{.Code}}" class="editRadCreds">
+                            <span>{{.Name}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+            </div>
+            <div class="col">
+                <fieldset>
+                    <legend>Specialties (Modalities)</legend>
+                    <nav class="vertical" style="max-height: 150px; overflow-y: auto;">
+                        {{ range .Modalities }}
+                        <label class="checkbox">
+                            <input type="checkbox" name="specialties" value="{{.Code}}" class="editRadSpecs">
+                            <span>{{.Name}}</span>
+                        </label>
+                        {{ end }}
+                    </nav>
+                </fieldset>
+            </div>
+        </div>
+        <div class="row">
+            <button type="button" class="transparent" onclick="ui('#editRadiologistModal')">Cancel</button>
+            <button type="submit">Save</button>
+        </div>
+    </form>
+</dialog>
 
 <dialog class="modal" id="addSiteModal">
     <h5>Add Site</h5>
@@ -305,4 +476,45 @@
         </div>
     </form>
 </dialog>
+
+<script>
+    const radiologistsData = {};
+    {{ range .Radiologists }}
+    radiologistsData["{{.ID}}"] = {{ json . }};
+    {{ end }}
+
+    function editRadiologist(id) {
+        const rad = radiologistsData[id];
+        if (!rad) return;
+
+        document.getElementById('editRadId').value = rad.id;
+        document.getElementById('editRadIdDisplay').value = rad.id;
+        document.getElementById('editRadFirstName').value = rad.first_name;
+        document.getElementById('editRadLastName').value = rad.last_name;
+        document.getElementById('editRadMax').value = rad.max_concurrent_studies;
+        document.getElementById('editRadStatus').value = rad.status;
+
+        // Reset checkboxes
+        document.querySelectorAll('.editRadCreds').forEach(cb => cb.checked = false);
+        document.querySelectorAll('.editRadSpecs').forEach(cb => cb.checked = false);
+
+        // Check credentials
+        if (rad.credentials) {
+            rad.credentials.forEach(cred => {
+                const cb = document.querySelector(`.editRadCreds[value="${cred}"]`);
+                if (cb) cb.checked = true;
+            });
+        }
+
+        // Check specialties
+        if (rad.specialties) {
+            rad.specialties.forEach(spec => {
+                const cb = document.querySelector(`.editRadSpecs[value="${spec}"]`);
+                if (cb) cb.checked = true;
+            });
+        }
+
+        ui('#editRadiologistModal');
+    }
+</script>
 {{ end }}
